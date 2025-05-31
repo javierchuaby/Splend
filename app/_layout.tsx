@@ -1,29 +1,46 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/useColorScheme';
+import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { useEffect, useState } from "react";
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [initialising, setInitialising] = useState(true);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>();
+  const router = useRouter();
+  const segments = useSegments();
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
+  const onAuthStateChanged = (user: FirebaseAuthTypes.User | null) => {
+    console.log('onAuthStateChanged', user);
+    setUser(user);
+    if (initialising) setInitialising(false);
   }
 
+  useEffect(() => {
+    const subscriber = auth().onAuthStateChanged(onAuthStateChanged);
+    return subscriber;
+  }, []);
+
+  useEffect(() => {
+    if (initialising) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (user && !inAuthGroup) {
+      router.replace('/(auth)/Home');
+    } else if (!user && inAuthGroup) {
+      router.replace('/');
+    }
+  }, [user, initialising]);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack>
+      <Stack.Screen 
+        name="index"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="(auth)"
+        options={{ headerShown: false }}
+      />
+    </Stack>
   );
 }
