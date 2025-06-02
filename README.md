@@ -37,13 +37,9 @@ Make sure you have the following installed on your machine:
 
 Once you have installed all the dependencies, you can run the app using Expo CLI.
 
-1.  **Start the Expo development server**:
+1.  **Run the app**:
+    Ensure that you have XCode installed on your device.
     ```bash
-    npx expo start
+    npx expo run:ios
     ```
-    This will open a new tab in your browser with the Expo DevTools, which provides various options to run your app.
-
-2.  **Run the app**:
-
-    *   **Run on iOS Simulator**:
-        This app is currently only being developed with iOS in mind. Expo gets the app running in Android, iOS, and web, but there might be certain packages or UI design elements that don't completely work.
+    This will run the app in the iOS Simulator.
