@@ -1,4 +1,3 @@
-// (auth))/trip-view.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
 import { useNavigation } from '@react-navigation/native';
@@ -14,7 +13,6 @@ import {
   View,
 } from 'react-native';
 
-// Define types for Trip and TripMember data structure
 interface TripMember {
   id: string;
   username: string;
@@ -29,30 +27,25 @@ interface Trip {
   createdAt: Date;
 }
 
-// Key for storing trip data in AsyncStorage
 const STORAGE_KEY = 'splend_trips';
 
-// Component for displaying details of a single trip
 export default function TripViewScreen() {
-  // Hooks for navigation and accessing route parameters
   const router = useRouter();
   const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
 
-  // State to hold the loaded trip data
   const [trip, setTrip] = useState<Trip | null>(null);
 
-  // Use layout effect to configure screen options (like hiding header)
   React.useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Load trip data when the component mounts or tripId changes
+  // Load trip data when the component mounts or tripId changes (This is the one that updates it immediately without refresh)
   useEffect(() => {
     loadTrip();
   }, [tripId]);
 
-  // Function to load trip data from AsyncStorage
+  // Load trip data from AsyncStorage (Firebase in the future)
   const loadTrip = async () => {
     try {
       const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
@@ -72,7 +65,7 @@ export default function TripViewScreen() {
     }
   };
 
-  // Function to handle trip deletion
+  // Delete trip
   const deleteTrip = async () => {
     if (!trip) return;
 
@@ -98,12 +91,9 @@ export default function TripViewScreen() {
                   createdAt: new Date(trip.createdAt),
                 }));
 
-                // Filter out the trip to be deleted
                 const updatedTrips = parsedTrips.filter((t: Trip) => t.id !== trip.id);
-                // Save the updated list back to AsyncStorage
                 await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
 
-                // Show success message and navigate back
                 Alert.alert('Success', 'Trip deleted successfully', [
                   {
                     text: 'OK',
@@ -121,7 +111,6 @@ export default function TripViewScreen() {
     );
   };
 
-  // Helper function to format date for display
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -130,12 +119,10 @@ export default function TripViewScreen() {
     });
   };
 
-  // Helper function to calculate trip duration in days
   const calculateDuration = (startDate: Date, endDate: Date) => {
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Add 1 to include both start and end days in the duration
     if (diffDays === 0) {
         return '1 day';
     } else {
@@ -144,7 +131,6 @@ export default function TripViewScreen() {
   };
 
 
-  // Function to navigate to the members management screen
   const navigateToMembers = () => {
     router.push({
       pathname: '/(auth)/trip-members',
@@ -152,19 +138,16 @@ export default function TripViewScreen() {
     });
   };
 
-  // Render a loading or error state if the trip is not found
   if (!trip) {
     return (
       <SafeAreaView style={styles.container}>
-        {/* Custom header for the 'Trip not found' state */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => auth().signOut()}>
             <Text style={styles.backButton}>← All Trips</Text>
           </TouchableOpacity>
-          {/* Placeholder for alignment when there's no title/button on the right */}
           <View style={styles.placeholder} />
         </View>
-        {/* Message displayed when the trip data couldn't be loaded */}
+        {/* Trip not found error message */}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Trip not found</Text>
         </View>
@@ -172,30 +155,23 @@ export default function TripViewScreen() {
     );
   }
 
-  // Main render for the trip details screen
   return (
     <SafeAreaView style={styles.container}>
-      {/* Custom header for the Trip Details view */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          {/* Button to navigate back to the previous screen (All Trips) */}
+          {/* Back button */}
           <Text style={styles.backButton}>← All Trips</Text>
         </TouchableOpacity>
-        {/* Title for the header */}
         <Text style={styles.headerTitle}></Text>
-        {/* Placeholder for alignment when there's no button on the right */}
         <View style={styles.placeholder} />
       </View>
 
-      {/* Scrollable container for the main content */}
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          {/* Section displaying the trip's main title */}
           <View style={styles.section}>
             <Text style={styles.tripTitle}>{trip.name}</Text>
           </View>
 
-          {/* Section displaying the trip's duration */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Duration</Text>
             <View style={styles.durationCard}>
@@ -208,21 +184,20 @@ export default function TripViewScreen() {
             </View>
           </View>
 
-          {/* Section displaying trip members */}
+          {/* Trip members */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Members</Text>
-              {/* Button to navigate to the members management screen */}
+              {/* Members button */}
               <TouchableOpacity onPress={navigateToMembers}>
                 <Text style={styles.manageButton}>Manage</Text>
               </TouchableOpacity>
             </View>
-            {/* Touchable card displaying a summary of members */}
+            {/* Members summary */}
             <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
               <Text style={styles.membersCount}>
                 {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
               </Text>
-              {/* Display a limited list of member usernames */}
               <View style={styles.membersList}>
                 {trip.members.slice(0, 3).map((member, index) => (
                   <Text key={member.id} style={styles.memberName}>
@@ -230,22 +205,20 @@ export default function TripViewScreen() {
                     {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
                   </Text>
                 ))}
-                {/* Indicate if there are more members not shown */}
+                {/* Indicate if members list truncated */}
                 {trip.members.length > 3 && (
                   <Text style={styles.memberName}>
                     +{trip.members.length - 3} more
                   </Text>
                 )}
               </View>
-              {/* Chevron icon to indicate tappable area */}
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Section containing the delete trip button */}
+        {/* Delete Trip button */}
         <View style={styles.deleteSection}>
-          {/* Button to trigger the delete trip confirmation */}
           <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
             <Text style={styles.deleteButtonText}>Delete Trip</Text>
           </TouchableOpacity>
@@ -255,7 +228,6 @@ export default function TripViewScreen() {
   );
 }
 
-// Stylesheet for the component
 const styles = StyleSheet.create({
   container: {
     flex: 1,
