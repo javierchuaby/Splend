@@ -1,5 +1,3 @@
-1. npm install
-
 # Splend
 
 Splend is the perfect group travel companion for planning events, tracking expenses, and splitting bills.
