@@ -1,17 +1,17 @@
-// app/trip-members.tsx
+// (auth)/trip-members.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 // Define types for Trip and TripMember data structure
@@ -49,7 +49,6 @@ export default function TripMembersScreen() {
   const [trip, setTrip] = useState<Trip | null>(null);
   // State for the member search input query
   const [searchQuery, setSearchQuery] = useState('');
-  // Note: isAddingMember state is removed as the add member section is always visible
 
   // Use layout effect to configure screen options (like hiding header)
   React.useLayoutEffect(() => {
@@ -126,7 +125,6 @@ export default function TripMembersScreen() {
     await saveTrip(updatedTrip);
     // Clear the search query and hide the search results
     setSearchQuery('');
-    // Removed setIsAddingMember(false) as the section is always visible
   };
 
   // Function to remove a member from the trip
@@ -304,7 +302,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  // addButton style is no longer used for header button
   placeholder: {
     width: 50,
   },

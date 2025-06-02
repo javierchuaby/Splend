@@ -6,17 +6,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 // Types
@@ -133,7 +133,7 @@ export default function HomeScreen() {
     }
 
     const newTrip: Trip = {
-      id: Date.now().toString(), // In Firebase, this would be auto-generated
+      id: Date.now().toString(),
       name: newTripName.trim(),
       members: selectedMembers,
       startDate,
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   signOutWelcomeText: {
-    color: '#fff',  // white text
+    color: '#fff',
     fontSize: 14,
     marginBottom: 0,
   },
@@ -826,13 +826,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   signOutButton: {
-    backgroundColor: '#1e1e1e', // example orange background
+    backgroundColor: '#1e1e1e',
     paddingVertical: 8,
     paddingHorizontal: 30,
     borderRadius: 8,
   },
   signOutButtonText: {
-    color: '#fff',  // white text
+    color: '#fff',
     fontSize: 18,
     fontWeight: '600',
   },
