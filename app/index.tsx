@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#ED9121',
+    color: '#305cde',
   },
 
   input: {
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     fontWeight: 'bold',
     color: '#1e1e1e',
-    backgroundColor: '#ED9121',
+    backgroundColor: '#fff',
   },
 
   button: {

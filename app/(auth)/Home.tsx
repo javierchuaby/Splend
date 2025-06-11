@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#ED9121',
+    color: '#305cde',
   },
   header: {
     flexDirection: 'row',
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   newTripButton: {
-    backgroundColor: '#0a84ff',
+    backgroundColor: '#305cde',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
