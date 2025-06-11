@@ -1,4 +1,3 @@
-// (auth)/trip-members.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,7 +13,6 @@ import {
   View,
 } from 'react-native';
 
-// Define types for Trip and TripMember data structure
 interface TripMember {
   id: string;
   username: string;
@@ -38,29 +36,24 @@ const MOCK_USERS: TripMember[] = [
 // Key for storing trip data in AsyncStorage
 const STORAGE_KEY = 'splend_trips';
 
-// Component for managing trip members
 export default function TripMembersScreen() {
-  // Hooks for navigation and accessing route parameters
   const router = useRouter();
   const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
 
-  // State to hold the loaded trip data
   const [trip, setTrip] = useState<Trip | null>(null);
-  // State for the member search input query
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Use layout effect to configure screen options (like hiding header)
   React.useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Load trip data when the component mounts or tripId changes
+  // Load trip data when the component mounts or tripId changes (IMPORTANT FOR EAGER UPDATES!!!)
   useEffect(() => {
     loadTrip();
   }, [tripId]);
 
-  // Function to load trip data from AsyncStorage
+  // Load trip data from AsyncStorage (Firebase in the future)
   const loadTrip = async () => {
     try {
       const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
@@ -71,7 +64,7 @@ export default function TripMembersScreen() {
           endDate: new Date(trip.endDate),
           createdAt: new Date(trip.createdAt),
         }));
-        // Find the specific trip by ID
+        // Find trip by ID
         const foundTrip = parsedTrips.find((t: Trip) => t.id === tripId);
         setTrip(foundTrip || null);
       }
@@ -80,7 +73,7 @@ export default function TripMembersScreen() {
     }
   };
 
-  // Function to save the updated trip data to AsyncStorage
+  // Save trip to AsyncStorage (Firebase in the future)
   const saveTrip = async (updatedTrip: Trip) => {
     try {
       const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
@@ -91,13 +84,13 @@ export default function TripMembersScreen() {
           endDate: new Date(trip.endDate),
           createdAt: new Date(trip.createdAt),
         }));
-        // Update the specific trip in the array
+
         const updatedTrips = parsedTrips.map((t: Trip) =>
           t.id === updatedTrip.id ? updatedTrip : t
         );
-        // Save the updated list back to AsyncStorage
+
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-        // Update the component's state with the saved trip
+
         setTrip(updatedTrip);
       }
     } catch (error) {
@@ -105,39 +98,35 @@ export default function TripMembersScreen() {
     }
   };
 
-  // Function to add a member to the trip
   const addMember = async (user: TripMember) => {
     if (!trip) return;
 
-    // Check if the user is already a member
+    // Check if already member
     if (trip.members.some(member => member.id === user.id)) {
       Alert.alert('Error', 'User is already a member of this trip');
       return;
     }
 
-    // Create an updated trip object with the new member
+
     const updatedTrip = {
       ...trip,
       members: [...trip.members, user],
     };
 
-    // Save the updated trip
     await saveTrip(updatedTrip);
-    // Clear the search query and hide the search results
     setSearchQuery('');
   };
 
-  // Function to remove a member from the trip
   const removeMember = async (memberId: string) => {
     if (!trip) return;
 
-    // Prevent removing the last member
+    // Prevent removing last member (Will change in future for single-person trips)
     if (trip.members.length === 1) {
       Alert.alert('Error', 'Trip must have at least one member');
       return;
     }
 
-    // Show a confirmation alert before removing
+    // Member Removal Alert
     Alert.alert(
       'Remove Member',
       'Are you sure you want to remove this member from the trip?',
@@ -147,12 +136,11 @@ export default function TripMembersScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            // Create an updated trip object without the removed member
             const updatedTrip = {
               ...trip,
               members: trip.members.filter(member => member.id !== memberId),
             };
-            // Save the updated trip
+
             await saveTrip(updatedTrip);
           },
         },
@@ -160,18 +148,17 @@ export default function TripMembersScreen() {
     );
   };
 
-  // Filter mock users based on search query and exclude existing members
+  // Search Query For Mock Users
   const filteredUsers = MOCK_USERS.filter(
     (user) =>
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) &&
       !trip?.members.some((member) => member.id === user.id)
   );
 
-  // Render function for each member item in the FlatList
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
       <Text style={styles.memberUsername}>{item.username}</Text>
-      {/* Button to remove a member */}
+      {/* Button to Remove Member */}
       <TouchableOpacity
         style={styles.removeButton}
         onPress={() => removeMember(item.id)}
@@ -181,31 +168,28 @@ export default function TripMembersScreen() {
     </View>
   );
 
-  // Render function for each search result item in the FlatList
   const renderSearchResultItem = ({ item }: { item: TripMember }) => (
     <TouchableOpacity
       style={styles.searchResultItem}
       onPress={() => addMember(item)}
     >
       <Text style={styles.searchResultText}>{item.username}</Text>
-      {/* Button to add a user to the trip */}
+      {/* Button to Add Member */}
       <Text style={styles.addButtonText}>Add</Text>
     </TouchableOpacity>
   );
 
-  // Render a loading or error state if the trip is not found
+  // Trip not Found error message
   if (!trip) {
     return (
       <SafeAreaView style={styles.container}>
-        {/* Custom header for the 'Trip not found' state */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.backButton}>← Trip</Text>
           </TouchableOpacity>
-          {/* Placeholder for alignment */}
           <View style={styles.placeholder} />
         </View>
-        {/* Message displayed when the trip data couldn't be loaded */}
+        {/* Trip not Found message */}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Trip not found</Text>
         </View>
@@ -213,27 +197,24 @@ export default function TripMembersScreen() {
     );
   }
 
-  // Main render for the Trip Members screen
+  // Trip Members screen
   return (
     <SafeAreaView style={styles.container}>
-      {/* Custom header for the Members view */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          {/* Button to navigate back to the Trip Details screen */}
+          {/* Back button */}
           <Text style={styles.backButton}>← Trip</Text>
         </TouchableOpacity>
-        {/* Title for the header */}
         <Text style={styles.headerTitle}>Members</Text>
-        {/* Placeholder for alignment when there's no button on the right */}
         <View style={styles.placeholder} />
       </View>
 
       {/* Main content area */}
       <View style={styles.content}>
-        {/* Add Member Section (Always visible) */}
+        {/* Add Member Section */}
         <View style={styles.addMemberSection}>
           <Text style={styles.sectionTitle}>Add New Member</Text>
-          {/* Input for searching users */}
+          {/* User Search Bar */}
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -242,7 +223,7 @@ export default function TripMembersScreen() {
             placeholderTextColor="#777"
             keyboardAppearance="dark"
           />
-          {/* Display search results if there is a query */}
+          {/* Display search results */}
           {searchQuery.length > 0 && (
             <View style={styles.searchResults}>
               <FlatList
@@ -252,7 +233,7 @@ export default function TripMembersScreen() {
                 style={styles.searchResultsList}
                 keyboardShouldPersistTaps="handled"
               />
-              {/* Message when no users match the search */}
+              {/* User not found error message */}
               {filteredUsers.length === 0 && (
                 <Text style={styles.noResultsText}>No users found</Text>
               )}
@@ -260,12 +241,11 @@ export default function TripMembersScreen() {
           )}
         </View>
 
-        {/* Section displaying the current members */}
+        {/* Current members */}
         <View style={styles.membersSection}>
           <Text style={styles.sectionTitle}>
             Current Members ({trip.members.length})
           </Text>
-          {/* List to display current trip members */}
           <FlatList
             data={trip.members}
             renderItem={renderMemberItem}
@@ -279,7 +259,6 @@ export default function TripMembersScreen() {
   );
 }
 
-// Stylesheet for the component
 const styles = StyleSheet.create({
   container: {
     flex: 1,
