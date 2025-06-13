@@ -33,12 +33,14 @@ Make sure you have the following installed on your machine:
     npm install
     ```
 
+2.  **Install XCode and the iOS Component**:
+*   Install XCode from the Mac App Store. Then, go to Settings > Components and install the iOS component.
+
 ## Running the App
 
-Once you have installed all the dependencies, you can run the app using Expo CLI.
+Once you have installed all the dependencies and the XCode iOS component, you can run the app using Expo CLI.
 
 1.  **Run the app**:
-    Ensure that you have XCode installed on your device.
     ```bash
     npx expo run:ios
     ```
