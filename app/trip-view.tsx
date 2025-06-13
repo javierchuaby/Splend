@@ -12,12 +12,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 interface TripMember {
-  id: string;
+  id: string; // User's UID
   username: string;
+  displayName: string;
 }
 
 interface Trip {
@@ -36,37 +37,81 @@ interface MonthOption {
 
 export default function TripViewScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
+  const navigation = useNavigation(); // Not strictly needed for this file based on current usage
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
+  const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Real-time listener for this trip
+  // Fetch current user's details
   useEffect(() => {
-    if (!tripId) return;
+    const fetchCurrentUser = async () => {
+      const user = auth().currentUser;
+      if (user) {
+        const userDoc = await firestore().collection('users').doc(user.uid).get();
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setCurrentUser({
+            id: user.uid,
+            username: userData?.username,
+            displayName: userData?.displayName,
+          });
+        }
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  // Real-time listener for this trip and access control
+  useEffect(() => {
+    if (!tripId || !currentUser) {
+      setIsLoading(true);
+      return;
+    } // Wait until currentUser is loaded
+
     const unsubscribe = firestore()
       .collection('trips')
       .doc(tripId as string)
-      .onSnapshot(doc => {
-        if (doc.exists()) {
-          const data = doc.data();
-          setTrip({
-            id: doc.id,
-            name: data!.name,
-            members: data!.members,
-            startDate: data!.startDate.toDate(),
-            endDate: data!.endDate.toDate(),
-            createdAt: data!.createdAt?.toDate() ?? new Date(),
-          });
-        } else {
+      .onSnapshot(
+        doc => {
+          if (doc.exists()) {
+            const data = doc.data();
+            const currentTrip: Trip = {
+              id: doc.id,
+              name: data!.name,
+              members: data!.members,
+              startDate: data!.startDate.toDate(),
+              endDate: data!.endDate.toDate(),
+              createdAt: data!.createdAt?.toDate() ?? new Date(),
+            };
+            setTrip(currentTrip);
+
+            // Check if current user is a member of this trip
+            const isMember = currentTrip.members.some(
+              member => member.id === currentUser.id
+            );
+            setHasAccess(isMember);
+            setIsLoading(false);
+          } else {
+            setTrip(null);
+            setHasAccess(false);
+            setIsLoading(false);
+          }
+        },
+        error => {
+          console.error('Error fetching trip:', error);
           setTrip(null);
+          setHasAccess(false);
+          setIsLoading(false);
         }
-      });
+      );
     return unsubscribe;
-  }, [tripId]);
+  }, [tripId, currentUser]); // Re-run effect when currentUser changes
 
   const saveTrip = async (updatedFields: Partial<Trip>) => {
     if (!trip) return;
@@ -113,7 +158,7 @@ export default function TripViewScreen() {
     );
   };
 
-  const concludeTrip = deleteTrip;
+  const concludeTrip = deleteTrip; // For simplicity, conclude is delete
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -136,11 +181,15 @@ export default function TripViewScreen() {
   const navigateToMembers = () => {
     router.push({
       pathname: '/trip-members',
-      params: { tripId: trip?.id }
+      params: { tripId: trip?.id },
     });
   };
 
-  const generateDateOptions = (): { years: number[]; months: MonthOption[]; days: number[] } => {
+  const generateDateOptions = (): {
+    years: number[];
+    months: MonthOption[];
+    days: number[];
+  } => {
     const today = new Date();
     const years: number[] = [];
     const months: MonthOption[] = [];
@@ -149,8 +198,18 @@ export default function TripViewScreen() {
       years.push(today.getFullYear() + i);
     }
     const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     monthNames.forEach((month, index) => {
       months.push({ label: month, value: index });
@@ -183,18 +242,40 @@ export default function TripViewScreen() {
     setShowEndDatePicker(false);
   };
 
-  if (!trip) {
+  // Display loading state
+  if (isLoading) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => auth().signOut()}>
+            <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.backButton}>← All Trips</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Trip not found</Text>
+            <Text style={styles.errorText}>Loading trip...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  // Display access denied or trip not found
+  if (!trip || !hasAccess) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backButton}>← All Trips</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              Trip not found or you don't have access.
+            </Text>
           </View>
         </SafeAreaView>
       </>
@@ -223,7 +304,9 @@ export default function TripViewScreen() {
                     setShowStartDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>Start: {formatDate(trip.startDate)}</Text>
+                  <Text style={styles.dateButtonText}>
+                    Start: {formatDate(trip.startDate)}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dateButton}
@@ -232,29 +315,37 @@ export default function TripViewScreen() {
                     setShowEndDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>End: {formatDate(trip.endDate)}</Text>
+                  <Text style={styles.dateButtonText}>
+                    End: {formatDate(trip.endDate)}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.durationSubtextContainer}>
-                <Text style={styles.durationSubtext}>{calculateDuration(trip.startDate, trip.endDate)}</Text>
+                <Text style={styles.durationSubtext}>
+                  {calculateDuration(trip.startDate, trip.endDate)}
+                </Text>
               </View>
             </View>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members</Text>
-              <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
+              <TouchableOpacity
+                style={styles.membersCard}
+                onPress={navigateToMembers}
+              >
                 <Text style={styles.membersCount}>
-                  {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
+                  {trip.members.length} member
+                  {trip.members.length !== 1 ? 's' : ''}
                 </Text>
                 <View style={styles.membersList}>
-                  {trip.members.slice(0, 3).map((member, index) => (
+                  {trip.members.slice(0, 2).map((member, index) => (
                     <Text key={member.id} style={styles.memberName}>
-                      {member.username}
+                      {member.displayName}
                       {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
                     </Text>
                   ))}
-                  {trip.members.length > 3 && (
+                  {trip.members.length > 2 && (
                     <Text style={styles.memberName}>
-                      +{trip.members.length - 3} more
+                      +{trip.members.length - 2} more
                     </Text>
                   )}
                 </View>
@@ -297,7 +388,7 @@ export default function TripViewScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getFullYear()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setFullYear(value);
                     setTempStartDate(newDate);
@@ -305,15 +396,19 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {years.map((year) => (
-                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  {years.map(year => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year}
+                    />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getMonth()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setMonth(value);
                     setTempStartDate(newDate);
@@ -321,15 +416,19 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {months.map((month) => (
-                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  {months.map(month => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.label}
+                      value={month.value}
+                    />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getDate()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setDate(value);
                     setTempStartDate(newDate);
@@ -337,8 +436,12 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {days.map((day) => (
-                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  {days.map(day => (
+                    <Picker.Item
+                      key={day}
+                      label={day.toString()}
+                      value={day}
+                    />
                   ))}
                 </Picker>
               </View>
@@ -369,7 +472,7 @@ export default function TripViewScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getFullYear()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setFullYear(value);
                     setTempEndDate(newDate);
@@ -377,15 +480,19 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {years.map((year) => (
-                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  {years.map(year => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year}
+                    />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getMonth()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setMonth(value);
                     setTempEndDate(newDate);
@@ -393,15 +500,19 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {months.map((month) => (
-                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  {months.map(month => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.label}
+                      value={month.value}
+                    />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getDate()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setDate(value);
                     setTempEndDate(newDate);
@@ -409,8 +520,12 @@ export default function TripViewScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {days.map((day) => (
-                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  {days.map(day => (
+                    <Picker.Item
+                      key={day}
+                      label={day.toString()}
+                      value={day}
+                    />
                   ))}
                 </Picker>
               </View>

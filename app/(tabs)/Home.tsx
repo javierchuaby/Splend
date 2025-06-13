@@ -14,13 +14,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 // Types
 interface TripMember {
-  id: string;
+  id: string; // This will now be the user's UID
   username: string;
+  displayName: string;
 }
 
 interface Trip {
@@ -37,12 +38,6 @@ interface MonthOption {
   value: number;
 }
 
-// Mock users for search functionality
-const MOCK_USERS: TripMember[] = [
-  { id: '1', username: 'Javier Chua' },
-  { id: '2', username: 'Chavier Jua' },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -54,10 +49,32 @@ export default function HomeScreen() {
   const [endDate, setEndDate] = useState(new Date());
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
+  const [searchResults, setSearchResults] = useState<TripMember[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   // Date picker state
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
+
+  // Fetch current user's details for auto-adding to trip
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const user = auth().currentUser;
+      if (user) {
+        const userDoc = await firestore().collection('users').doc(user.uid).get();
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setCurrentUser({
+            id: user.uid,
+            username: userData?.username,
+            displayName: userData?.displayName,
+          });
+        }
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   // Sign-out Button
   const SignOutButton = () => {
@@ -71,27 +88,109 @@ export default function HomeScreen() {
     );
   };
 
-  // Real-time listener for trips
+  // Real-time listener for trips (only show trips where current user is a member)
   useEffect(() => {
+    if (!currentUser) return; // Wait until current user is loaded
+
     const unsubscribe = firestore()
       .collection('trips')
       .orderBy('createdAt', 'desc')
       .onSnapshot(snapshot => {
-        const tripsData: Trip[] = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.name,
-            members: data.members,
-            startDate: data.startDate.toDate(),
-            endDate: data.endDate.toDate(),
-            createdAt: data.createdAt?.toDate() ?? new Date(),
-          };
-        });
+        if (!snapshot) {
+          return;
+        }
+
+        const tripsData: Trip[] = snapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name,
+              members: data.members as TripMember[], // Explicitly type the members array
+              startDate: data.startDate.toDate(),
+              endDate: data.endDate.toDate(),
+              createdAt: data.createdAt?.toDate() ?? new Date(),
+            };
+          })
+          .filter((trip: Trip) => 
+            trip.members.some((member: TripMember) => member.id === currentUser.id)
+          ); // Explicitly type the parameters
+
         setTrips(tripsData);
       });
     return unsubscribe;
-  }, []);
+  }, [currentUser]);
+
+  // Search users based on query
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (!memberSearchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsLoadingUsers(true);
+      const query = memberSearchQuery.toLowerCase();
+      const usersRef = firestore().collection('users');
+      let foundUsers: TripMember[] = [];
+
+      try {
+        // Try searching by username (exact match for username)
+        const usernameSnapshot = await usersRef
+          .where('username', '==', query)
+          .limit(1) // Assuming username is unique
+          .get();
+        usernameSnapshot.forEach(doc => {
+          const userData = doc.data();
+          foundUsers.push({
+            id: doc.id,
+            username: userData.username,
+            displayName: userData.displayName,
+          });
+        });
+
+        // If username not found, search by displayName (case-insensitive contains)
+        if (foundUsers.length === 0) {
+          const displayNameSnapshot = await usersRef
+            .orderBy('displayName')
+            .startAt(query.charAt(0).toUpperCase() + query.slice(1)) // Case-insensitive start for display name
+            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
+            .get();
+
+          displayNameSnapshot.forEach(doc => {
+            const userData = doc.data();
+            // Basic client-side filtering for 'contains' on display name
+            if (userData.displayName.toLowerCase().includes(query)) {
+              foundUsers.push({
+                id: doc.id,
+                username: userData.username,
+                displayName: userData.displayName,
+              });
+            }
+          });
+        }
+
+        // Filter out already selected members and the current user
+        const uniqueFoundUsers = foundUsers.filter(
+          user =>
+            !selectedMembers.some(member => member.id === user.id) &&
+            currentUser?.id !== user.id
+        );
+        setSearchResults(uniqueFoundUsers);
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setSearchResults([]);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    const handler = setTimeout(() => {
+      searchUsers();
+    }, 300); // Debounce search
+
+    return () => clearTimeout(handler);
+  }, [memberSearchQuery, selectedMembers, currentUser]);
 
   // Create new trip in Firestore
   const createTrip = async () => {
@@ -99,8 +198,18 @@ export default function HomeScreen() {
       Alert.alert('Error', 'Please enter a trip name');
       return;
     }
-    if (selectedMembers.length === 0) {
-      Alert.alert('Error', 'Please add at least one member');
+    if (!currentUser) {
+      Alert.alert('Error', 'Current user data not loaded. Please try again.');
+      return;
+    }
+
+    const allMembers = [
+      currentUser, // Add creator automatically
+      ...selectedMembers.filter(member => member.id !== currentUser.id), // Ensure no duplicates
+    ];
+
+    if (allMembers.length === 0) {
+      Alert.alert('Error', 'Trip must have at least one member (you)');
       return;
     }
     if (startDate > endDate) {
@@ -109,13 +218,14 @@ export default function HomeScreen() {
     }
 
     try {
-      await firestore().collection('trips').add({
+      const docRef = await firestore().collection('trips').add({
         name: newTripName.trim(),
-        members: selectedMembers,
+        members: allMembers,
         startDate: firestore.Timestamp.fromDate(startDate),
         endDate: firestore.Timestamp.fromDate(endDate),
         createdAt: firestore.FieldValue.serverTimestamp(),
       });
+
       // Reset form
       setNewTripName('');
       setSelectedMembers([]);
@@ -123,28 +233,30 @@ export default function HomeScreen() {
       setStartDate(new Date());
       setEndDate(new Date());
       setIsModalVisible(false);
+
+      // Open the newly-created trip
+      router.push({
+      pathname: '/trip-view',
+      params: { tripId: docRef.id },
+    });
     } catch (error) {
       Alert.alert('Error', 'Failed to create trip');
       console.error(error);
     }
   };
 
-  // Filter users based on search query
-  const filteredUsers = MOCK_USERS.filter(
-    (user) =>
-      user.username.toLowerCase().includes(memberSearchQuery.toLowerCase()) &&
-      !selectedMembers.some((member) => member.id === user.id)
-  );
-
   // Add member to selected list
   const addMember = (user: TripMember) => {
-    setSelectedMembers([...selectedMembers, user]);
-    setMemberSearchQuery('');
+    if (!selectedMembers.some(member => member.id === user.id)) {
+      setSelectedMembers([...selectedMembers, user]);
+      setMemberSearchQuery('');
+      setSearchResults([]); // Clear search results after adding
+    }
   };
 
   // Remove member from selected list
   const removeMember = (userId: string) => {
-    setSelectedMembers(selectedMembers.filter((member) => member.id !== userId));
+    setSelectedMembers(selectedMembers.filter(member => member.id !== userId));
   };
 
   // Format date for display
@@ -157,7 +269,11 @@ export default function HomeScreen() {
   };
 
   // Generate date options for picker
-  const generateDateOptions = (): { years: number[]; months: MonthOption[]; days: number[] } => {
+  const generateDateOptions = (): {
+    years: number[];
+    months: MonthOption[];
+    days: number[];
+  } => {
     const today = new Date();
     const years: number[] = [];
     const months: MonthOption[] = [];
@@ -170,8 +286,18 @@ export default function HomeScreen() {
 
     // Months
     const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     monthNames.forEach((month, index) => {
       months.push({ label: month, value: index });
@@ -202,13 +328,16 @@ export default function HomeScreen() {
   const navigateToTrip = (trip: Trip) => {
     router.push({
       pathname: '/trip-view',
-      params: { tripId: trip.id }
+      params: { tripId: trip.id },
     });
   };
 
   // Render trip item
   const renderTripItem = ({ item }: { item: Trip }) => (
-    <TouchableOpacity style={styles.tripCard} onPress={() => navigateToTrip(item)}>
+    <TouchableOpacity
+      style={styles.tripCard}
+      onPress={() => navigateToTrip(item)}
+    >
       <Text style={styles.tripName}>{item.name}</Text>
       <Text style={styles.tripDates}>
         {formatDate(item.startDate)} - {formatDate(item.endDate)}
@@ -219,14 +348,12 @@ export default function HomeScreen() {
       <View style={styles.membersList}>
         {item.members.slice(0, 3).map((member, index) => (
           <Text key={member.id} style={styles.memberName}>
-            {member.username}
+            {member.displayName}
             {index < Math.min(item.members.length - 1, 2) ? ', ' : ''}
           </Text>
         ))}
         {item.members.length > 3 && (
-          <Text style={styles.memberName}>
-            +{item.members.length - 3} more
-          </Text>
+          <Text style={styles.memberName}>+{item.members.length - 3} more</Text>
         )}
       </View>
     </TouchableOpacity>
@@ -246,7 +373,12 @@ export default function HomeScreen() {
         <Text style={styles.title}>My Trips</Text>
         <TouchableOpacity
           style={styles.newTripButton}
-          onPress={() => setIsModalVisible(true)}
+          onPress={() => {
+            setIsModalVisible(true);
+            if (currentUser) {
+              setSelectedMembers([currentUser]); // Pre-select current user
+            }
+          }}
         >
           <Text style={styles.newTripButtonText}>+ New Trip</Text>
         </TouchableOpacity>
@@ -254,7 +386,9 @@ export default function HomeScreen() {
 
       {/* Welcome message above trip cards */}
       <View style={styles.welcomeContainer}>
-        <Text style={styles.signOutWelcomeText}>Welcome back, {auth().currentUser?.email}</Text>
+        <Text style={styles.signOutWelcomeText}>
+          {currentUser?.displayName ? `Welcome back, ${currentUser.displayName}` : "Welcome to Splend!"}
+        </Text>
       </View>
 
       {trips.length === 0 ? (
@@ -268,7 +402,7 @@ export default function HomeScreen() {
         <FlatList
           data={trips}
           renderItem={renderTripItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           contentContainerStyle={styles.tripsList}
           showsVerticalScrollIndicator={false}
         />
@@ -341,7 +475,7 @@ export default function HomeScreen() {
                 style={styles.textInput}
                 value={memberSearchQuery}
                 onChangeText={setMemberSearchQuery}
-                placeholder="Search users by username"
+                placeholder="Search users by username or display name"
                 placeholderTextColor="#777"
                 keyboardAppearance="dark"
               />
@@ -349,18 +483,26 @@ export default function HomeScreen() {
               {/* Search Results */}
               {memberSearchQuery.length > 0 && (
                 <View style={styles.searchResults}>
-                  {filteredUsers.map((user) => (
-                    <TouchableOpacity
-                      key={user.id}
-                      style={styles.searchResultItem}
-                      onPress={() => addMember(user)}
-                    >
-                      <Text style={styles.searchResultText}>
-                        {user.username}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  {filteredUsers.length === 0 && (
+                  {isLoadingUsers ? (
+                    <Text style={styles.loadingText}>Searching...</Text>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map(user => (
+                      <TouchableOpacity
+                        key={user.id}
+                        style={styles.searchResultItem}
+                        onPress={() => addMember(user)}
+                      >
+                        <Text style={styles.searchResultText}>
+                          <Text style={{ fontWeight: 'bold' }}>
+                            {user.displayName}
+                          </Text>{' '}
+                          <Text style={styles.usernameText}>
+                            @{user.username}
+                          </Text>
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
                     <Text style={styles.noResultsText}>No users found</Text>
                   )}
                 </View>
@@ -372,14 +514,23 @@ export default function HomeScreen() {
                   <Text style={styles.selectedMembersTitle}>
                     Selected Members:
                   </Text>
-                  {selectedMembers.map((member) => (
+                  {selectedMembers.map(member => (
                     <View key={member.id} style={styles.selectedMemberItem}>
                       <Text style={styles.selectedMemberText}>
-                        {member.username}
+                        <Text style={{ fontWeight: 'bold' }}>
+                          {member.displayName}
+                        </Text>{' '}
+                        <Text style={styles.usernameText}>
+                          @{member.username}
+                        </Text>
                       </Text>
-                      <TouchableOpacity onPress={() => removeMember(member.id)}>
-                        <Text style={styles.removeMemberButton}>×</Text>
-                      </TouchableOpacity>
+                      {currentUser?.id !== member.id && ( // Prevent removing self
+                        <TouchableOpacity
+                          onPress={() => removeMember(member.id)}
+                        >
+                          <Text style={styles.removeMemberButton}>×</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -403,7 +554,7 @@ export default function HomeScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getFullYear()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setFullYear(value);
                     setTempStartDate(newDate);
@@ -411,14 +562,18 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {years.map((year) => (
-                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  {years.map(year => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year}
+                    />
                   ))}
                 </Picker>
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getMonth()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setMonth(value);
                     setTempStartDate(newDate);
@@ -426,14 +581,18 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {months.map((month) => (
-                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  {months.map(month => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.label}
+                      value={month.value}
+                    />
                   ))}
                 </Picker>
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getDate()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempStartDate);
                     newDate.setDate(value);
                     setTempStartDate(newDate);
@@ -441,8 +600,12 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {days.map((day) => (
-                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  {days.map(day => (
+                    <Picker.Item
+                      key={day}
+                      label={day.toString()}
+                      value={day}
+                    />
                   ))}
                 </Picker>
               </View>
@@ -465,7 +628,7 @@ export default function HomeScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getFullYear()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setFullYear(value);
                     setTempEndDate(newDate);
@@ -473,14 +636,18 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {years.map((year) => (
-                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  {years.map(year => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year}
+                    />
                   ))}
                 </Picker>
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getMonth()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setMonth(value);
                     setTempEndDate(newDate);
@@ -488,14 +655,18 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {months.map((month) => (
-                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  {months.map(month => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.label}
+                      value={month.value}
+                    />
                   ))}
                 </Picker>
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getDate()}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     const newDate = new Date(tempEndDate);
                     newDate.setDate(value);
                     setTempEndDate(newDate);
@@ -503,8 +674,12 @@ export default function HomeScreen() {
                   dropdownIconColor="#fff"
                   itemStyle={{ color: '#fff' }}
                 >
-                  {days.map((day) => (
-                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  {days.map(day => (
+                    <Picker.Item
+                      key={day}
+                      label={day.toString()}
+                      value={day}
+                    />
                   ))}
                 </Picker>
               </View>
@@ -701,10 +876,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
+  usernameText: {
+    fontSize: 14,
+    color: '#888',
+  },
   noResultsText: {
     padding: 12,
     fontSize: 14,
     color: '#888',
+    textAlign: 'center',
+  },
+  loadingText: {
+    padding: 12,
+    fontSize: 14,
+    color: '#aaa',
     textAlign: 'center',
   },
   selectedMembers: {

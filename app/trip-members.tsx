@@ -1,3 +1,4 @@
+import auth from '@react-native-firebase/auth'; // Import auth
 import firestore from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,8 +15,9 @@ import {
 } from 'react-native';
 
 interface TripMember {
-  id: string;
+  id: string; // User's UID
   username: string;
+  displayName: string;
 }
 
 interface Trip {
@@ -27,40 +29,135 @@ interface Trip {
   createdAt: Date;
 }
 
-const MOCK_USERS: TripMember[] = [
-  { id: '1', username: 'Javier Chua' },
-  { id: '2', username: 'Chavier Jua' },
-];
-
 export default function TripMembersScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
+  const navigation = useNavigation(); // Not strictly needed for this file based on current usage
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<TripMember[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
+
+  // Fetch current user's details
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const user = auth().currentUser;
+      if (user) {
+        const userDoc = await firestore().collection('users').doc(user.uid).get();
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setCurrentUser({
+            id: user.uid,
+            username: userData?.username,
+            displayName: userData?.displayName,
+          });
+        }
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   useEffect(() => {
-    if (!tripId) return;
+    if (!tripId || !currentUser) return;
+
     const unsubscribe = firestore()
       .collection('trips')
       .doc(tripId as string)
       .onSnapshot(doc => {
         if (doc.exists()) {
           const data = doc.data();
-          setTrip({
+          const currentTrip: Trip = {
             id: doc.id,
             name: data!.name,
             members: data!.members,
             startDate: data!.startDate.toDate(),
             endDate: data!.endDate.toDate(),
             createdAt: data!.createdAt?.toDate() ?? new Date(),
-          });
+          };
+          setTrip(currentTrip);
+
+          // Check if current user is a member to grant access
+          const isMember = currentTrip.members.some(
+            member => member.id === currentUser.id
+          );
+          setHasAccess(isMember);
         } else {
           setTrip(null);
+          setHasAccess(false);
         }
       });
     return unsubscribe;
-  }, [tripId]);
+  }, [tripId, currentUser]); // Depend on currentUser to re-run access check
+
+  // Search users based on query
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsLoadingUsers(true);
+      const query = searchQuery.toLowerCase();
+      const usersRef = firestore().collection('users');
+      let foundUsers: TripMember[] = [];
+
+      try {
+        // Try searching by username (exact match for username)
+        const usernameSnapshot = await usersRef
+          .where('username', '==', query)
+          .limit(1)
+          .get();
+        usernameSnapshot.forEach(doc => {
+          const userData = doc.data();
+          foundUsers.push({
+            id: doc.id,
+            username: userData.username,
+            displayName: userData.displayName,
+          });
+        });
+
+        // If username not found, search by displayName (case-insensitive contains)
+        if (foundUsers.length === 0) {
+          const displayNameSnapshot = await usersRef
+            .orderBy('displayName')
+            .startAt(query.charAt(0).toUpperCase() + query.slice(1))
+            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
+            .get();
+
+          displayNameSnapshot.forEach(doc => {
+            const userData = doc.data();
+            if (userData.displayName.toLowerCase().includes(query)) {
+              foundUsers.push({
+                id: doc.id,
+                username: userData.username,
+                displayName: userData.displayName,
+              });
+            }
+          });
+        }
+
+        // Filter out already selected members for this trip
+        const uniqueFoundUsers = foundUsers.filter(
+          user => !trip?.members.some(member => member.id === user.id)
+        );
+        setSearchResults(uniqueFoundUsers);
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setSearchResults([]);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    const handler = setTimeout(() => {
+      searchUsers();
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery, trip?.members]); // Depend on trip members to update search results
 
   const addMember = async (user: TripMember) => {
     if (!trip) return;
@@ -73,24 +170,32 @@ export default function TripMembersScreen() {
         .collection('trips')
         .doc(trip.id)
         .update({
-          members: [...trip.members, user],
+          members: [...trip.members, user], // Store full member object
         });
       setSearchQuery('');
+      setSearchResults([]); // Clear search results after adding
     } catch (error) {
       Alert.alert('Error', 'Failed to add member');
       console.error(error);
     }
   };
 
-  const removeMember = async (memberId: string) => {
-    if (!trip) return;
+  const removeMember = async (memberToRemove: TripMember) => {
+    if (!trip || !currentUser) return;
+
     if (trip.members.length === 1) {
-      Alert.alert('Error', 'Trip must have at least one member');
+      Alert.alert('Error', 'Trip must have at least one member.');
       return;
     }
+
+    if (memberToRemove.id === currentUser.id) {
+      Alert.alert('Error', 'You cannot remove yourself from the trip here.');
+      return;
+    }
+
     Alert.alert(
       'Remove Member',
-      'Are you sure you want to remove this member from the trip?',
+      `Are you sure you want to remove ${memberToRemove.displayName} from the trip?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -102,7 +207,9 @@ export default function TripMembersScreen() {
                 .collection('trips')
                 .doc(trip.id)
                 .update({
-                  members: trip.members.filter(member => member.id !== memberId),
+                  members: trip.members.filter(
+                    member => member.id !== memberToRemove.id
+                  ),
                 });
             } catch (error) {
               Alert.alert('Error', 'Failed to remove member');
@@ -114,29 +221,38 @@ export default function TripMembersScreen() {
     );
   };
 
-  const filteredUsers = MOCK_USERS.filter(
-    (user) =>
-      user.username.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !trip?.members.some((member) => member.id === user.id)
-  );
-
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
-      <Text style={styles.memberUsername}>{item.username}</Text>
-      <TouchableOpacity style={styles.removeButton} onPress={() => removeMember(item.id)}>
-        <Text style={styles.removeButtonText}>Remove</Text>
-      </TouchableOpacity>
+      <Text style={styles.memberUsername}>
+        <Text style={{ fontWeight: 'bold' }}>{item.displayName}</Text>{' '}
+        <Text style={styles.usernameText}>@{item.username}</Text>
+      </Text>
+      {currentUser?.id !== item.id && ( // Prevent removing self
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => removeMember(item)}
+        >
+          <Text style={styles.removeButtonText}>Remove</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
   const renderSearchResultItem = ({ item }: { item: TripMember }) => (
-    <TouchableOpacity style={styles.searchResultItem} onPress={() => addMember(item)}>
-      <Text style={styles.searchResultText}>{item.username}</Text>
+    <TouchableOpacity
+      style={styles.searchResultItem}
+      onPress={() => addMember(item)}
+    >
+      <Text style={styles.searchResultText}>
+        <Text style={{ fontWeight: 'bold' }}>{item.displayName}</Text>{' '}
+        <Text style={styles.usernameText}>@{item.username}</Text>
+      </Text>
       <Text style={styles.addButtonText}>Add</Text>
     </TouchableOpacity>
   );
 
-  if (!trip) {
+  if (!tripId || !currentUser) {
+    // Initial loading or if tripId/currentUser is missing
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -145,9 +261,33 @@ export default function TripMembersScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.backButton}>← Trip</Text>
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>Members</Text>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Trip not found</Text>
+            <Text style={styles.errorText}>Loading trip data...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  if (!trip || !hasAccess) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backButton}>← Trip</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Members</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              Trip not found or you don't have access.
+            </Text>
           </View>
         </SafeAreaView>
       </>
@@ -170,28 +310,33 @@ export default function TripMembersScreen() {
             <Text style={styles.sectionTitle}>Add New Member</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search users"
+              placeholder="Search users by username or display name"
               placeholderTextColor="#888"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <View style={styles.searchResults}>
-                <FlatList
-                  data={filteredUsers}
-                  renderItem={renderSearchResultItem}
-                  keyExtractor={item => item.id}
-                  style={styles.searchResultsList}
-                  keyboardShouldPersistTaps="handled"
-                />
-                {filteredUsers.length === 0 && (
+                {isLoadingUsers ? (
+                  <Text style={styles.loadingText}>Searching...</Text>
+                ) : searchResults.length > 0 ? (
+                  <FlatList
+                    data={searchResults}
+                    renderItem={renderSearchResultItem}
+                    keyExtractor={item => item.id}
+                    style={styles.searchResultsList}
+                    keyboardShouldPersistTaps="handled"
+                  />
+                ) : (
                   <Text style={styles.noResultsText}>No users found</Text>
                 )}
               </View>
             )}
           </View>
           <View style={styles.membersSection}>
-            <Text style={styles.sectionTitle}>Current Members ({trip.members.length})</Text>
+            <Text style={styles.sectionTitle}>
+              Current Members ({trip.members.length})
+            </Text>
             <FlatList
               data={trip.members}
               renderItem={renderMemberItem}
@@ -276,6 +421,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
+  usernameText: {
+    fontSize: 14,
+    color: '#888',
+  },
   addButtonText: {
     fontSize: 14,
     color: '#0a84ff',
@@ -285,6 +434,12 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     color: '#888',
+    textAlign: 'center',
+  },
+  loadingText: {
+    padding: 12,
+    fontSize: 14,
+    color: '#aaa',
     textAlign: 'center',
   },
   membersSection: {
