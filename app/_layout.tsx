@@ -22,10 +22,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (initialising) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuthGroup = segments[0] === '(tabs)';
 
     if (user && !inAuthGroup) {
-      router.replace('/(auth)/Home');
+      router.replace('/(tabs)/Home');
     } else if (!user && inAuthGroup) {
       router.replace('/');
     }
@@ -38,7 +38,7 @@ export default function RootLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="(auth)"
+        name="(tabs)"
         options={{ headerShown: false }}
       />
     </Stack>

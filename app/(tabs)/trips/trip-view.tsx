@@ -2,7 +2,7 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -38,17 +38,11 @@ export default function TripViewScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
-
   const [trip, setTrip] = useState<Trip | null>(null);
-
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
-
-  React.useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
 
   // Real-time listener for this trip
   useEffect(() => {
@@ -57,7 +51,7 @@ export default function TripViewScreen() {
       .collection('trips')
       .doc(tripId as string)
       .onSnapshot(doc => {
-        if ((doc.exists())) {
+        if (doc.exists()) {
           const data = doc.data();
           setTrip({
             id: doc.id,
@@ -74,7 +68,6 @@ export default function TripViewScreen() {
     return unsubscribe;
   }, [tripId]);
 
-  // Save trip (update dates)
   const saveTrip = async (updatedFields: Partial<Trip>) => {
     if (!trip) return;
     try {
@@ -96,7 +89,6 @@ export default function TripViewScreen() {
     }
   };
 
-  // Delete trip
   const deleteTrip = async () => {
     if (!trip) return;
     Alert.alert(
@@ -121,7 +113,6 @@ export default function TripViewScreen() {
     );
   };
 
-  // Conclude trip (same as delete for now)
   const concludeTrip = deleteTrip;
 
   const formatDate = (date: Date) => {
@@ -142,27 +133,21 @@ export default function TripViewScreen() {
     }
   };
 
-  // Navigate to members screen
   const navigateToMembers = () => {
     router.push({
-      pathname: '/(auth)/trip-members',
+      pathname: '/(tabs)/members/trip-members',
       params: { tripId: trip?.id }
     });
   };
 
-  // Change date from within the Trip view
   const generateDateOptions = (): { years: number[]; months: MonthOption[]; days: number[] } => {
     const today = new Date();
     const years: number[] = [];
     const months: MonthOption[] = [];
     const days: number[] = [];
-
-    // Years (current year + 5 years)
     for (let i = 0; i < 6; i++) {
       years.push(today.getFullYear() + i);
     }
-
-    // Months
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -170,18 +155,14 @@ export default function TripViewScreen() {
     monthNames.forEach((month, index) => {
       months.push({ label: month, value: index });
     });
-
-    // Days (1-31)
     for (let i = 1; i <= 31; i++) {
       days.push(i);
     }
-
     return { years, months, days };
   };
 
   const { years, months, days } = generateDateOptions();
 
-  // Date picker handlers
   const handleStartDateDone = async () => {
     if (!trip) return;
     if (tempStartDate > trip.endDate) {
@@ -204,254 +185,240 @@ export default function TripViewScreen() {
 
   if (!trip) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => auth().signOut()}>
-            <Text style={styles.backButton}>← All Trips</Text>
-          </TouchableOpacity>
-          <View style={styles.placeholder} />
-        </View>
-        {/* Trip not found error message */}
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Trip not found</Text>
-        </View>
-      </SafeAreaView>
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => auth().signOut()}>
+              <Text style={styles.backButton}>← All Trips</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Trip not found</Text>
+          </View>
+        </SafeAreaView>
+      </>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          {/* Back button */}
-          <Text style={styles.backButton}>← All Trips</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}></Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <View style={styles.section}>
-            <Text style={styles.tripTitle}>{trip.name}</Text>
-          </View>
-
-          {/* Trip duration */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Duration</Text>
-            {/* Make the duration card tappable to open date pickers */}
-            <View style={styles.dateRow}>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => {
-                  setTempStartDate(new Date(trip.startDate));
-                  setShowStartDatePicker(true);
-                }}
-              >
-                <Text style={styles.dateButtonText}>
-                  Start: {formatDate(trip.startDate)}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => {
-                  setTempEndDate(new Date(trip.endDate));
-                  setShowEndDatePicker(true);
-                }}
-              >
-                <Text style={styles.dateButtonText}>
-                  End: {formatDate(trip.endDate)}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.durationSubtextContainer}>
-              <Text style={styles.durationSubtext}>
-                {calculateDuration(trip.startDate, trip.endDate)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Trip members */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Members</Text>
-            </View>
-            {/* Members summary */}
-            <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
-              <Text style={styles.membersCount}>
-                {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
-              </Text>
-              <View style={styles.membersList}>
-                {trip.members.slice(0, 3).map((member, index) => (
-                  <Text key={member.id} style={styles.memberName}>
-                    {member.username}
-                    {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
-                  </Text>
-                ))}
-                {/* Indicate if members list truncated */}
-                {trip.members.length > 3 && (
-                  <Text style={styles.memberName}>
-                    +{trip.members.length - 3} more
-                  </Text>
-                )}
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-          </View>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.backButton}>← All Trips</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Conclude Trip button */}
+        <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <Text style={styles.tripTitle}>{trip.name}</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Duration</Text>
+              <View style={styles.dateRow}>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => {
+                    setTempStartDate(new Date(trip.startDate));
+                    setShowStartDatePicker(true);
+                  }}
+                >
+                  <Text style={styles.dateButtonText}>Start: {formatDate(trip.startDate)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => {
+                    setTempEndDate(new Date(trip.endDate));
+                    setShowEndDatePicker(true);
+                  }}
+                >
+                  <Text style={styles.dateButtonText}>End: {formatDate(trip.endDate)}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.durationSubtextContainer}>
+                <Text style={styles.durationSubtext}>{calculateDuration(trip.startDate, trip.endDate)}</Text>
+              </View>
+            </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Members</Text>
+              <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
+                <Text style={styles.membersCount}>
+                  {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
+                </Text>
+                <View style={styles.membersList}>
+                  {trip.members.slice(0, 3).map((member, index) => (
+                    <Text key={member.id} style={styles.memberName}>
+                      {member.username}
+                      {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
+                    </Text>
+                  ))}
+                  {trip.members.length > 3 && (
+                    <Text style={styles.memberName}>
+                      +{trip.members.length - 3} more
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
         <View style={styles.concludeSection}>
-          {/* Button to trigger the delete trip confirmation */}
           <TouchableOpacity style={styles.concludeButton} onPress={concludeTrip}>
             <Text style={styles.concludeButtonText}>Conclude Trip</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Delete Trip button */}
         <View style={styles.deleteSection}>
           <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
             <Text style={styles.deleteButtonText}>Delete Trip</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
 
-      {/* Start Date Picker Modal */}
-      <Modal
-        visible={showStartDatePicker}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.datePickerOverlay}>
-          <View style={styles.datePickerContainer}>
-            <View style={styles.datePickerHeader}>
-              <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                <Text style={styles.datePickerCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.datePickerTitle}>Select Start Date</Text>
-              <TouchableOpacity onPress={handleStartDateDone}>
-                <Text style={styles.datePickerDone}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.pickerRow}>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempStartDate.getFullYear()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempStartDate);
-                  newDate.setFullYear(value);
-                  setTempStartDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {years.map((year) => (
-                  <Picker.Item key={year} label={year.toString()} value={year} />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempStartDate.getMonth()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempStartDate);
-                  newDate.setMonth(value);
-                  setTempStartDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {months.map((month) => (
-                  <Picker.Item key={month.value} label={month.label} value={month.value} />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempStartDate.getDate()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempStartDate);
-                  newDate.setDate(value);
-                  setTempStartDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={day.toString()} value={day} />
-                ))}
-              </Picker>
+        {/* Start Date Picker Modal */}
+        <Modal
+          visible={showStartDatePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowStartDatePicker(false)}
+        >
+          <View style={styles.datePickerOverlay}>
+            <View style={styles.datePickerContainer}>
+              <View style={styles.datePickerHeader}>
+                <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                  <Text style={styles.datePickerCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.datePickerTitle}>Select Start Date</Text>
+                <TouchableOpacity onPress={handleStartDateDone}>
+                  <Text style={styles.datePickerDone}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pickerRow}>
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempStartDate.getFullYear()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempStartDate);
+                    newDate.setFullYear(value);
+                    setTempStartDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {years.map((year) => (
+                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  ))}
+                </Picker>
+
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempStartDate.getMonth()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempStartDate);
+                    newDate.setMonth(value);
+                    setTempStartDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {months.map((month) => (
+                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  ))}
+                </Picker>
+
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempStartDate.getDate()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempStartDate);
+                    newDate.setDate(value);
+                    setTempStartDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {days.map((day) => (
+                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  ))}
+                </Picker>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* End Date Picker Modal */}
-      <Modal
-        visible={showEndDatePicker}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.datePickerOverlay}>
-          <View style={styles.datePickerContainer}>
-            <View style={styles.datePickerHeader}>
-              <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                <Text style={styles.datePickerCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.datePickerTitle}>Select End Date</Text>
-              <TouchableOpacity onPress={handleEndDateDone}>
-                <Text style={styles.datePickerDone}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.pickerRow}>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempEndDate.getFullYear()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempEndDate);
-                  newDate.setFullYear(value);
-                  setTempEndDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {years.map((year) => (
-                  <Picker.Item key={year} label={year.toString()} value={year} />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempEndDate.getMonth()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempEndDate);
-                  newDate.setMonth(value);
-                  setTempEndDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {months.map((month) => (
-                  <Picker.Item key={month.value} label={month.label} value={month.value} />
-                ))}
-              </Picker>
-              <Picker
-                style={styles.picker}
-                selectedValue={tempEndDate.getDate()}
-                onValueChange={(value) => {
-                  const newDate = new Date(tempEndDate);
-                  newDate.setDate(value);
-                  setTempEndDate(newDate);
-                }}
-                dropdownIconColor="#fff"
-                itemStyle={{ color: '#fff' }}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={day.toString()} value={day} />
-                ))}
-              </Picker>
+        {/* End Date Picker Modal */}
+        <Modal
+          visible={showEndDatePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowEndDatePicker(false)}
+        >
+          <View style={styles.datePickerOverlay}>
+            <View style={styles.datePickerContainer}>
+              <View style={styles.datePickerHeader}>
+                <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
+                  <Text style={styles.datePickerCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.datePickerTitle}>Select End Date</Text>
+                <TouchableOpacity onPress={handleEndDateDone}>
+                  <Text style={styles.datePickerDone}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pickerRow}>
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempEndDate.getFullYear()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempEndDate);
+                    newDate.setFullYear(value);
+                    setTempEndDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {years.map((year) => (
+                    <Picker.Item key={year} label={year.toString()} value={year} />
+                  ))}
+                </Picker>
+
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempEndDate.getMonth()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempEndDate);
+                    newDate.setMonth(value);
+                    setTempEndDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {months.map((month) => (
+                    <Picker.Item key={month.value} label={month.label} value={month.value} />
+                  ))}
+                </Picker>
+
+                <Picker
+                  style={styles.picker}
+                  selectedValue={tempEndDate.getDate()}
+                  onValueChange={(value) => {
+                    const newDate = new Date(tempEndDate);
+                    newDate.setDate(value);
+                    setTempEndDate(newDate);
+                  }}
+                  dropdownIconColor="#fff"
+                  itemStyle={{ color: '#fff' }}
+                >
+                  {days.map((day) => (
+                    <Picker.Item key={day} label={day.toString()} value={day} />
+                  ))}
+                </Picker>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </>
   );
 }
 
@@ -532,7 +499,7 @@ const styles = StyleSheet.create({
   },
   durationSubtextContainer: {
     marginTop: 8,
-    alignItems: 'center', // Center the duration text
+    alignItems: 'center',
   },
   durationSubtext: {
     fontSize: 14,
@@ -619,14 +586,14 @@ const styles = StyleSheet.create({
   },
   datePickerOverlay: {
     flex: 1,
-    justifyContent: 'flex-end', // Position at the bottom
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   datePickerContainer: {
     backgroundColor: '#1e1e1e',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
-    overflow: 'hidden', // Ensures rounded corners
+    overflow: 'hidden',
   },
   datePickerHeader: {
     flexDirection: 'row',

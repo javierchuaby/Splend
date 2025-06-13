@@ -12,7 +12,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.galaxies.splendauth",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "This app needs access to your calendar to manage trip events"
+      }
     },
     "android": {
       "adaptiveIcon": {

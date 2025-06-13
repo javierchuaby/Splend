@@ -1,6 +1,6 @@
 import firestore from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -27,7 +27,6 @@ interface Trip {
   createdAt: Date;
 }
 
-// Mock users for search functionality
 const MOCK_USERS: TripMember[] = [
   { id: '1', username: 'Javier Chua' },
   { id: '2', username: 'Chavier Jua' },
@@ -37,15 +36,9 @@ export default function TripMembersScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
-
   const [trip, setTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  React.useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
-
-  // Real-time listener for this trip
   useEffect(() => {
     if (!tripId) return;
     const unsubscribe = firestore()
@@ -69,7 +62,6 @@ export default function TripMembersScreen() {
     return unsubscribe;
   }, [tripId]);
 
-  // Add member
   const addMember = async (user: TripMember) => {
     if (!trip) return;
     if (trip.members.some(member => member.id === user.id)) {
@@ -90,7 +82,6 @@ export default function TripMembersScreen() {
     }
   };
 
-  // Remove member
   const removeMember = async (memberId: string) => {
     if (!trip) return;
     if (trip.members.length === 1) {
@@ -123,7 +114,6 @@ export default function TripMembersScreen() {
     );
   };
 
-  // Search Query For Mock Users
   const filteredUsers = MOCK_USERS.filter(
     (user) =>
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -133,104 +123,86 @@ export default function TripMembersScreen() {
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
       <Text style={styles.memberUsername}>{item.username}</Text>
-      {/* Button to Remove Member */}
-      <TouchableOpacity
-        style={styles.removeButton}
-        onPress={() => removeMember(item.id)}
-      >
+      <TouchableOpacity style={styles.removeButton} onPress={() => removeMember(item.id)}>
         <Text style={styles.removeButtonText}>Remove</Text>
       </TouchableOpacity>
     </View>
   );
 
   const renderSearchResultItem = ({ item }: { item: TripMember }) => (
-    <TouchableOpacity
-      style={styles.searchResultItem}
-      onPress={() => addMember(item)}
-    >
+    <TouchableOpacity style={styles.searchResultItem} onPress={() => addMember(item)}>
       <Text style={styles.searchResultText}>{item.username}</Text>
-      {/* Button to Add Member */}
       <Text style={styles.addButtonText}>Add</Text>
     </TouchableOpacity>
   );
 
-  // Trip not Found error message
   if (!trip) {
     return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backButton}>← Trip</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Trip not found</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.backButton}>← Trip</Text>
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Members</Text>
           <View style={styles.placeholder} />
         </View>
-        {/* Trip not Found message */}
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Trip not found</Text>
+        <View style={styles.content}>
+          <View style={styles.addMemberSection}>
+            <Text style={styles.sectionTitle}>Add New Member</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search users"
+              placeholderTextColor="#888"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <View style={styles.searchResults}>
+                <FlatList
+                  data={filteredUsers}
+                  renderItem={renderSearchResultItem}
+                  keyExtractor={item => item.id}
+                  style={styles.searchResultsList}
+                  keyboardShouldPersistTaps="handled"
+                />
+                {filteredUsers.length === 0 && (
+                  <Text style={styles.noResultsText}>No users found</Text>
+                )}
+              </View>
+            )}
+          </View>
+          <View style={styles.membersSection}>
+            <Text style={styles.sectionTitle}>Current Members ({trip.members.length})</Text>
+            <FlatList
+              data={trip.members}
+              renderItem={renderMemberItem}
+              keyExtractor={item => item.id}
+              style={styles.membersList}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
         </View>
       </SafeAreaView>
-    );
-  }
-
-  // Trip Members screen
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          {/* Back button */}
-          <Text style={styles.backButton}>← Trip</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Members</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {/* Main content area */}
-      <View style={styles.content}>
-        {/* Add Member Section */}
-        <View style={styles.addMemberSection}>
-          <Text style={styles.sectionTitle}>Add New Member</Text>
-          {/* User Search Bar */}
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search users by username"
-            placeholderTextColor="#777"
-            keyboardAppearance="dark"
-          />
-          {/* Display search results */}
-          {searchQuery.length > 0 && (
-            <View style={styles.searchResults}>
-              <FlatList
-                data={filteredUsers}
-                renderItem={renderSearchResultItem}
-                keyExtractor={(item) => item.id}
-                style={styles.searchResultsList}
-                keyboardShouldPersistTaps="handled"
-              />
-              {/* User not found error message */}
-              {filteredUsers.length === 0 && (
-                <Text style={styles.noResultsText}>No users found</Text>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Current members */}
-        <View style={styles.membersSection}>
-          <Text style={styles.sectionTitle}>
-            Current Members ({trip.members.length})
-          </Text>
-          <FlatList
-            data={trip.members}
-            renderItem={renderMemberItem}
-            keyExtractor={(item) => item.id}
-            style={styles.membersList}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-      </View>
-    </SafeAreaView>
+    </>
   );
 }
 
