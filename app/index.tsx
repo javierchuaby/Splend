@@ -1,4 +1,5 @@
-import auth from '@react-native-firebase/auth';
+import { getApp } from '@react-native-firebase/app';
+import { createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword } from '@react-native-firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { useState } from "react";
 import {
@@ -21,8 +22,10 @@ export default function Index() {
   const signUp = async () => {
     setLoading(true);
     try {
-      await auth().createUserWithEmailAndPassword(email, password);
-      alert('Check your emails!');
+      const app = getApp();
+      const auth = getAuth(app);
+      await createUserWithEmailAndPassword(auth, email, password);
+      alert('Check your email for a verification code!');
     } catch (e: any) {
       const err = e as FirebaseError;
       alert('Registration failed: ' + err.message);
@@ -34,10 +37,12 @@ export default function Index() {
   const signIn = async () => {
     setLoading(true);
     try {
-      await auth().signInWithEmailAndPassword(email, password);
+      const app = getApp();
+      const auth = getAuth(app);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (e: any) {
       const err = e as FirebaseError;
-      alert('Registration failed: ' + err.message);
+      alert('Sign in failed: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -45,105 +50,145 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#1e1e1e" barStyle="light-content" />
+      <StatusBar backgroundColor="#0f0f23" barStyle="light-content" />
 
       {/* Title container */}
       <View style={styles.pageTitleContainer}>
         <Text style={styles.pageTitle}>Splend</Text>
+        <Text style={styles.subtitle}>Have a plan? Splend it!</Text>
       </View>
 
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'center' }}>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="Email"
-        />
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Password"
-        />
-        {loading ? (
-          <ActivityIndicator size={'small'} style={{ margin:28 }} />
-        ) : (
-          <>
-            <TouchableOpacity style={[styles.button, styles.signUpButton]} onPress={signUp}>
-              <Text style={styles.buttonText}>Sign Up</Text>
-            </TouchableOpacity>
+      <KeyboardAvoidingView behavior="padding" style={styles.formContainer}>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="Email"
+            placeholderTextColor="#8e8e93"
+          />
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="Password"
+            placeholderTextColor="#8e8e93"
+          />
+        </View>
 
+        {loading ? (
+          <ActivityIndicator size="large" color="#4c6ef5" style={styles.loader} />
+        ) : (
+          <View style={styles.buttonContainer}>
             <TouchableOpacity style={[styles.button, styles.signInButton]} onPress={signIn}>
               <Text style={styles.buttonText}>Sign In</Text>
             </TouchableOpacity>
-          </>
-        )}
 
+            <TouchableOpacity style={[styles.button, styles.signUpButton]} onPress={signUp}>
+              <Text style={styles.buttonText}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
-    marginHorizontal: 0,
     flex: 1,
-    justifyContent: 'center',
-    padding: 0,
-    paddingHorizontal: 5,
     backgroundColor: '#1e1e1e',
   },
 
   pageTitleContainer: {
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: '#1e1e1e',
+    paddingTop: 60,
+    paddingBottom: 40,
     alignItems: 'center',
   },
 
   pageTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#305cde',
+    fontSize: 42,
+    fontWeight: '800',
+    color: '#4c6ef5',
+    letterSpacing: -1,
+  },
+
+  subtitle: {
+    fontSize: 18,
+    color: '#a0a0ab',
+    marginTop: 8,
+    fontWeight: '400',
+  },
+
+  formContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+
+  inputContainer: {
+    marginBottom: 32,
   },
 
   input: {
-    marginVertical: 4,
-    marginHorizontal: 10,
-    height: 50,
+    height: 56,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    fontSize: 16,
+    color: '#ffffff',
     borderWidth: 1,
-    borderRadius: 50,
-    padding: 5,
-    paddingHorizontal: 15,
-    marginBottom: 3,
-    fontWeight: 'bold',
-    color: '#1e1e1e',
-    backgroundColor: '#fff',
+    borderColor: '#2a2a3e',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  buttonContainer: {
+    gap: 12,
   },
 
   button: {
-    paddingVertical: 3,
-    borderRadius: 2,
-    marginTop: 7,
-    marginBottom: 0,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
-  },
-
-  signUpButton: {
-    backgroundColor: '#1e1e1e',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
   },
 
   signInButton: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#4c6ef5',
+  },
+
+  signUpButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#4c6ef5',
   },
 
   buttonText: {
-    color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+    color: '#ffffff',
+  },
+
+  loader: {
+    marginVertical: 32,
   },
 });

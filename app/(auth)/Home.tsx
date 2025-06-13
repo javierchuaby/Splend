@@ -152,8 +152,6 @@ export default function HomeScreen() {
     setStartDate(new Date());
     setEndDate(new Date());
     setIsModalVisible(false);
-
-    Alert.alert('Success', 'Trip created successfully!');
   };
 
   // Filter users based on search query
