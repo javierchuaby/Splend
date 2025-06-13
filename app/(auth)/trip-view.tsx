@@ -1,9 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -34,8 +34,6 @@ interface MonthOption {
   value: number;
 }
 
-const STORAGE_KEY = 'splend_trips';
-
 export default function TripViewScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -52,152 +50,79 @@ export default function TripViewScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Load trip data when the component mounts or tripId changes (This is the one that updates it immediately without refresh)
+  // Real-time listener for this trip
   useEffect(() => {
-    loadTrip();
+    if (!tripId) return;
+    const unsubscribe = firestore()
+      .collection('trips')
+      .doc(tripId as string)
+      .onSnapshot(doc => {
+        if ((doc.exists())) {
+          const data = doc.data();
+          setTrip({
+            id: doc.id,
+            name: data!.name,
+            members: data!.members,
+            startDate: data!.startDate.toDate(),
+            endDate: data!.endDate.toDate(),
+            createdAt: data!.createdAt?.toDate() ?? new Date(),
+          });
+        } else {
+          setTrip(null);
+        }
+      });
+    return unsubscribe;
   }, [tripId]);
 
-  // Load trip data from AsyncStorage (Firebase in the future)
-  const loadTrip = async () => {
-    try {
-      const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedTrips) {
-        const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-          ...trip,
-          startDate: new Date(trip.startDate),
-          endDate: new Date(trip.endDate),
-          createdAt: new Date(trip.createdAt),
-        }));
-        // Find the specific trip by ID
-        const foundTrip = parsedTrips.find((t: Trip) => t.id === tripId);
-        setTrip(foundTrip || null);
-      }
-    } catch (error) {
-      console.error('Error loading trip:', error);
-      setTrip(null);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      loadTrip();
-    }, [tripId]) // Dependency array: reload if tripId changes (shouldn't happen here)
-  );
-
-  // Save trip (ie. change trip date)
-  const saveTrip = async (updatedTrip: Trip) => {
-    try {
-      const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedTrips) {
-        const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-          ...trip,
-          startDate: new Date(trip.startDate),
-          endDate: new Date(trip.endDate),
-          createdAt: new Date(trip.createdAt),
-        }));
-        // Update the specific trip in the array
-        const updatedTrips = parsedTrips.map((t: Trip) =>
-          t.id === updatedTrip.id ? updatedTrip : t
-        );
-        // Save the updated list back to AsyncStorage
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-        // Update the component's state with the saved trip
-        setTrip(updatedTrip);
-      }
-    } catch (error) {
-      console.error('Error saving trip:', error);
-    }
-  };
-
-  // Conclude trip
-  const concludeTrip = async () => {
+  // Save trip (update dates)
+  const saveTrip = async (updatedFields: Partial<Trip>) => {
     if (!trip) return;
-
-    Alert.alert(
-      'Conclude Trip',
-      `Would you like to conclude "${trip.name}"?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Conclude',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-              if (storedTrips) {
-                const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-                  ...trip,
-                  startDate: new Date(trip.startDate),
-                  endDate: new Date(trip.endDate),
-                  createdAt: new Date(trip.createdAt),
-                }));
-
-                // Filter out the trip to be deleted
-                const updatedTrips = parsedTrips.filter((t: Trip) => t.id !== trip.id);
-                // Save the updated list back to AsyncStorage
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-
-                // Show success message and navigate back
-                Alert.alert('Success', 'Trip deleted successfully', [
-                  {
-                    text: 'OK',
-                    onPress: () => router.back(),
-                  },
-                ]);
-              }
-            } catch (error) {
-              console.error('Error concluding trip:', error);
-              Alert.alert('Error', 'Failed to conclude trip');
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await firestore()
+        .collection('trips')
+        .doc(trip.id)
+        .update({
+          ...updatedFields,
+          ...(updatedFields.startDate && {
+            startDate: firestore.Timestamp.fromDate(updatedFields.startDate),
+          }),
+          ...(updatedFields.endDate && {
+            endDate: firestore.Timestamp.fromDate(updatedFields.endDate),
+          }),
+        });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update trip');
+      console.error(error);
+    }
   };
 
   // Delete trip
   const deleteTrip = async () => {
     if (!trip) return;
-
     Alert.alert(
       'Delete Trip',
       `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
-              const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-              if (storedTrips) {
-                const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-                  ...trip,
-                  startDate: new Date(trip.startDate),
-                  endDate: new Date(trip.endDate),
-                  createdAt: new Date(trip.createdAt),
-                }));
-
-                const updatedTrips = parsedTrips.filter((t: Trip) => t.id !== trip.id);
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-
-                router.back();
-              }
+              await firestore().collection('trips').doc(trip.id).delete();
+              router.back();
             } catch (error) {
-              console.error('Error deleting trip:', error);
               Alert.alert('Error', 'Failed to delete trip');
+              console.error(error);
             }
           },
         },
       ]
     );
   };
+
+  // Conclude trip (same as delete for now)
+  const concludeTrip = deleteTrip;
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -210,11 +135,10 @@ export default function TripViewScreen() {
   const calculateDuration = (startDate: Date, endDate: Date) => {
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
     if (diffDays === 0) {
-        return '1 day';
+      return '1 day';
     } else {
-        return `${diffDays + 1} days`;
+      return `${diffDays + 1} days`;
     }
   };
 
@@ -260,35 +184,21 @@ export default function TripViewScreen() {
   // Date picker handlers
   const handleStartDateDone = async () => {
     if (!trip) return;
-
-    // Validate date before saving
     if (tempStartDate > trip.endDate) {
       Alert.alert('Error', 'Start date cannot be after the end date');
       return;
     }
-
-    const updatedTrip = {
-      ...trip,
-      startDate: tempStartDate,
-    };
-    await saveTrip(updatedTrip);
+    await saveTrip({ startDate: tempStartDate });
     setShowStartDatePicker(false);
   };
 
   const handleEndDateDone = async () => {
     if (!trip) return;
-
-     // Validate date before saving
-     if (tempEndDate < trip.startDate) {
-        Alert.alert('Error', 'End date cannot be before the start date');
-        return;
-      }
-
-    const updatedTrip = {
-      ...trip,
-      endDate: tempEndDate,
-    };
-    await saveTrip(updatedTrip);
+    if (tempEndDate < trip.startDate) {
+      Alert.alert('Error', 'End date cannot be before the start date');
+      return;
+    }
+    await saveTrip({ endDate: tempEndDate });
     setShowEndDatePicker(false);
   };
 
@@ -334,7 +244,7 @@ export default function TripViewScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setTempStartDate(new Date(trip.startDate)); // Use trip state for initial value
+                  setTempStartDate(new Date(trip.startDate));
                   setShowStartDatePicker(true);
                 }}
               >
@@ -345,7 +255,7 @@ export default function TripViewScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setTempEndDate(new Date(trip.endDate)); // Use trip state for initial value
+                  setTempEndDate(new Date(trip.endDate));
                   setShowEndDatePicker(true);
                 }}
               >
@@ -360,7 +270,6 @@ export default function TripViewScreen() {
               </Text>
             </View>
           </View>
-
 
           {/* Trip members */}
           <View style={styles.section}>
@@ -411,7 +320,7 @@ export default function TripViewScreen() {
       <Modal
         visible={showStartDatePicker}
         animationType="slide"
-        transparent={true} // Make the background transparent for better visual
+        transparent={true}
       >
         <View style={styles.datePickerOverlay}>
           <View style={styles.datePickerContainer}>
@@ -479,7 +388,7 @@ export default function TripViewScreen() {
       <Modal
         visible={showEndDatePicker}
         animationType="slide"
-        transparent={true} // Make the background transparent for better visual
+        transparent={true}
       >
         <View style={styles.datePickerOverlay}>
           <View style={styles.datePickerContainer}>

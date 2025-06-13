@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -33,9 +33,6 @@ const MOCK_USERS: TripMember[] = [
   { id: '2', username: 'Chavier Jua' },
 ];
 
-// Key for storing trip data in AsyncStorage
-const STORAGE_KEY = 'splend_trips';
-
 export default function TripMembersScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -48,85 +45,58 @@ export default function TripMembersScreen() {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Load trip data when the component mounts or tripId changes (IMPORTANT FOR EAGER UPDATES!!!)
+  // Real-time listener for this trip
   useEffect(() => {
-    loadTrip();
+    if (!tripId) return;
+    const unsubscribe = firestore()
+      .collection('trips')
+      .doc(tripId as string)
+      .onSnapshot(doc => {
+        if (doc.exists()) {
+          const data = doc.data();
+          setTrip({
+            id: doc.id,
+            name: data!.name,
+            members: data!.members,
+            startDate: data!.startDate.toDate(),
+            endDate: data!.endDate.toDate(),
+            createdAt: data!.createdAt?.toDate() ?? new Date(),
+          });
+        } else {
+          setTrip(null);
+        }
+      });
+    return unsubscribe;
   }, [tripId]);
 
-  // Load trip data from AsyncStorage (Firebase in the future)
-  const loadTrip = async () => {
-    try {
-      const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedTrips) {
-        const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-          ...trip,
-          startDate: new Date(trip.startDate),
-          endDate: new Date(trip.endDate),
-          createdAt: new Date(trip.createdAt),
-        }));
-        // Find trip by ID
-        const foundTrip = parsedTrips.find((t: Trip) => t.id === tripId);
-        setTrip(foundTrip || null);
-      }
-    } catch (error) {
-      console.error('Error loading trip:', error);
-    }
-  };
-
-  // Save trip to AsyncStorage (Firebase in the future)
-  const saveTrip = async (updatedTrip: Trip) => {
-    try {
-      const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedTrips) {
-        const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-          ...trip,
-          startDate: new Date(trip.startDate),
-          endDate: new Date(trip.endDate),
-          createdAt: new Date(trip.createdAt),
-        }));
-
-        const updatedTrips = parsedTrips.map((t: Trip) =>
-          t.id === updatedTrip.id ? updatedTrip : t
-        );
-
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-
-        setTrip(updatedTrip);
-      }
-    } catch (error) {
-      console.error('Error saving trip:', error);
-    }
-  };
-
+  // Add member
   const addMember = async (user: TripMember) => {
     if (!trip) return;
-
-    // Check if already member
     if (trip.members.some(member => member.id === user.id)) {
       Alert.alert('Error', 'User is already a member of this trip');
       return;
     }
-
-
-    const updatedTrip = {
-      ...trip,
-      members: [...trip.members, user],
-    };
-
-    await saveTrip(updatedTrip);
-    setSearchQuery('');
+    try {
+      await firestore()
+        .collection('trips')
+        .doc(trip.id)
+        .update({
+          members: [...trip.members, user],
+        });
+      setSearchQuery('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add member');
+      console.error(error);
+    }
   };
 
+  // Remove member
   const removeMember = async (memberId: string) => {
     if (!trip) return;
-
-    // Prevent removing last member (Will change in future for single-person trips)
     if (trip.members.length === 1) {
       Alert.alert('Error', 'Trip must have at least one member');
       return;
     }
-
-    // Member Removal Alert
     Alert.alert(
       'Remove Member',
       'Are you sure you want to remove this member from the trip?',
@@ -136,12 +106,17 @@ export default function TripMembersScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            const updatedTrip = {
-              ...trip,
-              members: trip.members.filter(member => member.id !== memberId),
-            };
-
-            await saveTrip(updatedTrip);
+            try {
+              await firestore()
+                .collection('trips')
+                .doc(trip.id)
+                .update({
+                  members: trip.members.filter(member => member.id !== memberId),
+                });
+            } catch (error) {
+              Alert.alert('Error', 'Failed to remove member');
+              console.error(error);
+            }
           },
         },
       ]

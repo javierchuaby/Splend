@@ -1,8 +1,6 @@
-// app/(auth)/homepage.tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -45,8 +43,6 @@ const MOCK_USERS: TripMember[] = [
   { id: '2', username: 'Chavier Jua' },
 ];
 
-const STORAGE_KEY = 'splend_trips';
-
 export default function HomeScreen() {
   const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -65,93 +61,72 @@ export default function HomeScreen() {
 
   // Sign-out Button
   const SignOutButton = () => {
-    const user = auth().currentUser;
-
     return (
-        <TouchableOpacity style={styles.signOutButton} onPress={() => auth().signOut()}>
-            <Text style={styles.signOutButtonText}>Sign Out</Text>
-        </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.signOutButton}
+        onPress={() => auth().signOut()}
+      >
+        <Text style={styles.signOutButtonText}>Sign Out</Text>
+      </TouchableOpacity>
     );
   };
 
-  // Load trips from local storage on component mount
+  // Real-time listener for trips
   useEffect(() => {
-    loadTrips();
+    const unsubscribe = firestore()
+      .collection('trips')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        const tripsData: Trip[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            members: data.members,
+            startDate: data.startDate.toDate(),
+            endDate: data.endDate.toDate(),
+            createdAt: data.createdAt?.toDate() ?? new Date(),
+          };
+        });
+        setTrips(tripsData);
+      });
+    return unsubscribe;
   }, []);
 
-  // Refresh trips when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      loadTrips();
-    }, [])
-  );
-
-  // Trip storage functions (designed for easy Firebase migration)
-  const loadTrips = async () => {
-    try {
-      const storedTrips = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedTrips) {
-        const parsedTrips = JSON.parse(storedTrips).map((trip: any) => ({
-          ...trip,
-          startDate: new Date(trip.startDate),
-          endDate: new Date(trip.endDate),
-          createdAt: new Date(trip.createdAt),
-        }));
-        setTrips(parsedTrips);
-      } else {
-        setTrips([]);
-      }
-    } catch (error) {
-      console.error('Error loading trips:', error);
-      setTrips([]);
-    }
-  };
-
-  const saveTrips = async (updatedTrips: Trip[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-    } catch (error) {
-      console.error('Error saving trips:', error);
-    }
-  };
-
-  // Create new trip
+  // Create new trip in Firestore
   const createTrip = async () => {
     if (!newTripName.trim()) {
       Alert.alert('Error', 'Please enter a trip name');
       return;
     }
-
     if (selectedMembers.length === 0) {
       Alert.alert('Error', 'Please add at least one member');
       return;
     }
-
     if (startDate > endDate) {
       Alert.alert('Error', 'End date must be on or after start date');
       return;
     }
 
-    const newTrip: Trip = {
-      id: Date.now().toString(),
-      name: newTripName.trim(),
-      members: selectedMembers,
-      startDate,
-      endDate,
-      createdAt: new Date(),
-    };
-
-    const updatedTrips = [...trips, newTrip];
-    setTrips(updatedTrips);
-    await saveTrips(updatedTrips);
-
-    // Reset form
-    setNewTripName('');
-    setSelectedMembers([]);
-    setMemberSearchQuery('');
-    setStartDate(new Date());
-    setEndDate(new Date());
-    setIsModalVisible(false);
+    try {
+      await firestore().collection('trips').add({
+        name: newTripName.trim(),
+        members: selectedMembers,
+        startDate: firestore.Timestamp.fromDate(startDate),
+        endDate: firestore.Timestamp.fromDate(endDate),
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+      // Reset form
+      setNewTripName('');
+      setSelectedMembers([]);
+      setMemberSearchQuery('');
+      setStartDate(new Date());
+      setEndDate(new Date());
+      setIsModalVisible(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create trip');
+      console.error(error);
+    }
   };
 
   // Filter users based on search query
@@ -227,10 +202,7 @@ export default function HomeScreen() {
   const navigateToTrip = (trip: Trip) => {
     router.push({
       pathname: '/trip-view',
-      params: { 
-        tripId: trip.id,
-        tripData: JSON.stringify(trip)
-      }
+      params: { tripId: trip.id }
     });
   };
 
