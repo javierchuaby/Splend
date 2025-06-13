@@ -201,7 +201,7 @@ export default function HomeScreen() {
   // Navigate to trip view
   const navigateToTrip = (trip: Trip) => {
     router.push({
-      pathname: '/(tabs)/trips/trip-view',
+      pathname: '/trip-view',
       params: { tripId: trip.id }
     });
   };

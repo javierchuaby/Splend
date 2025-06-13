@@ -135,7 +135,7 @@ export default function TripViewScreen() {
 
   const navigateToMembers = () => {
     router.push({
-      pathname: '/(tabs)/members/trip-members',
+      pathname: '/trip-members',
       params: { tripId: trip?.id }
     });
   };

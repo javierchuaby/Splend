@@ -1,5 +1,6 @@
 import { getApp } from '@react-native-firebase/app';
-import { createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword } from '@react-native-firebase/auth';
+import { getAuth, signInWithEmailAndPassword } from '@react-native-firebase/auth';
+import { Link, useRouter } from 'expo-router'; // IMPORTANT: Import Link AND useRouter
 import { FirebaseError } from 'firebase/app';
 import { useState } from "react";
 import {
@@ -18,21 +19,11 @@ export default function Index() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter(); // IMPORTANT: Initialize router
 
-  const signUp = async () => {
-    setLoading(true);
-    try {
-      const app = getApp();
-      const auth = getAuth(app);
-      await createUserWithEmailAndPassword(auth, email, password);
-      alert('Check your email for a verification code!');
-    } catch (e: any) {
-      const err = e as FirebaseError;
-      alert('Registration failed: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // The signUp function is no longer directly here.
+  // It's handled by the dedicated sign-up.tsx page
+  // and the Link component will navigate there.
 
   const signIn = async () => {
     setLoading(true);
@@ -87,9 +78,12 @@ export default function Index() {
               <Text style={styles.buttonText}>Sign In</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.button, styles.signUpButton]} onPress={signUp}>
-              <Text style={styles.buttonText}>Create Account</Text>
-            </TouchableOpacity>
+            {/* IMPORTANT: Link to the sign-up page */}
+            <Link href="/sign-up" asChild>
+              <TouchableOpacity style={styles.signUpTextButton}>
+                <Text style={styles.signUpText}>Create New Account</Text>
+              </TouchableOpacity>
+            </Link>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -176,11 +170,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#4c6ef5',
   },
 
-  signUpButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#4c6ef5',
+  // These styles are for the "Create New Account" text button
+  signUpTextButton: {
+    marginTop: 10,
+    alignSelf: 'center',
   },
+  signUpText: {
+    fontSize: 16,
+    color: '#a0a0ab',
+    fontWeight: '500',
+  },
+
+  // Removed the old signUpButton styles as it's now a text button
+  // signUpButton: {
+  //   backgroundColor: 'transparent',
+  //   borderWidth: 2,
+  //   borderColor: '#4c6ef5',
+  // },
 
   buttonText: {
     fontSize: 18,
