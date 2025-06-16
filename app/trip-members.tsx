@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 interface TripMember {
-  id: string;
+  id: string; // This corresponds to `uid` in the `users` collection
   username: string;
   displayName: string;
 }
@@ -59,27 +59,53 @@ export default function TripMembersScreen() {
     fetchCurrentUser();
   }, []);
 
+  // Fetch trip data and resolve members from `users` collection
   useEffect(() => {
     if (!tripId || !currentUser) return;
 
     const unsubscribe = firestore()
       .collection('trips')
       .doc(tripId as string)
-      .onSnapshot(doc => {
+      .onSnapshot(async doc => {
         if (doc.exists()) {
           const data = doc.data();
+          const tripMembers = data!.members;
+
+          // Fetch user data for each member from the `users` collection
+          const resolvedMembers: TripMember[] = await Promise.all(
+            tripMembers.map(async (member: { displayName: string, id: string, username: string }) => {
+              const userDoc = await firestore().collection('users').doc(member.id).get();
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                return {
+                  id: member.id,
+                  username: userData?.username,
+                  displayName: userData?.displayName,
+                };
+              } else {
+                // Fall back on old data if things go awry.
+                return {
+                  id: member.id,
+                  username: member.username,
+                  displayName: member.displayName,
+                };
+              }
+            })
+          );
+
           const currentTrip: Trip = {
             id: doc.id,
             name: data!.name,
-            members: data!.members,
+            members: resolvedMembers,
             startDate: data!.startDate.toDate(),
             endDate: data!.endDate.toDate(),
             createdAt: data!.createdAt?.toDate() ?? new Date(),
           };
+
           setTrip(currentTrip);
 
           // Check if current user is a member to grant access
-          const isMember = currentTrip.members.some(
+          const isMember = resolvedMembers.some(
             member => member.id === currentUser.id
           );
           setHasAccess(isMember);
