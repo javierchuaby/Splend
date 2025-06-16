@@ -254,7 +254,12 @@ export default function TripMembersScreen() {
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
       <Text style={styles.memberUsername}>
-        <Text style={{ fontWeight: 'bold' }}>{item.displayName}</Text>{' '}
+        <Text style={{ fontWeight: 'bold' }}>
+          {item.displayName.length > 24
+            ? `${item.displayName.substring(0, 16)}...`
+            : item.displayName
+          }
+        </Text>{' '}
         <Text style={styles.usernameText}>@{item.username}</Text>
       </Text>
       {currentUser?.id !== item.id && ( // Disable remove button for oneself
@@ -493,7 +498,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   memberUsername: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#fff',
     fontWeight: '500',
   },
@@ -505,7 +510,7 @@ const styles = StyleSheet.create({
   },
   removeButtonText: {
     color: '#ff453a',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   errorContainer: {
