@@ -1,18 +1,18 @@
 import { getApp } from '@react-native-firebase/app';
 import { createUserWithEmailAndPassword, getAuth, updateProfile } from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore'; // Import Firestore
+import firestore from '@react-native-firebase/firestore';
 import { Stack, useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,51 +27,50 @@ export default function SignUp() {
   const handleSignUp = async () => {
     setLoading(true);
     try {
-      // 1. Check if username already exists in Firestore
+      // Step 1. Check if username already exists 
       const usernameQuery = await firestore()
         .collection('users')
-        .where('username', '==', username.toLowerCase()) // Store usernames as lowercase for consistency
+        .where('username', '==', username.toLowerCase())
         .get();
 
       if (!usernameQuery.empty) {
-        alert('Registration failed: This username is already taken. Please choose another.');
+        alert('This username is already taken.');
         setLoading(false);
-        return; // Stop the sign-up process
+        return;
       }
 
-      // 2. Create Firebase Authentication account
+      // Step 2. Create account on Firebase Auth database
       const app = getApp();
       const auth = getAuth(app);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       if (user) {
-        // 3. Update Firebase Auth profile with display name
+        // 3. Update Firebase Auth with display name
         await updateProfile(user, {
           displayName: displayName,
         });
 
-        // 4. Store additional user data (including username) in Firestore
+        // 4. Store additional user data in Firestore collection "users"
         await firestore().collection('users').doc(user.uid).set({
           uid: user.uid,
           email: user.email,
           displayName: displayName,
-          username: username.toLowerCase(), // Store lowercase username
-          createdAt: firestore.FieldValue.serverTimestamp(), // Timestamp for creation
-          // Add any other user-specific data you need
+          username: username.toLowerCase(),
+          createdAt: firestore.FieldValue.serverTimestamp(), // kaypoh only
         });
       }
       
-      // router.back();
+      // router.back(); // Dunno if I want this yet. It's smoother to just let the user in straightaway
     } catch (e: any) {
       const err = e as FirebaseError;
-      // Firebase auth errors have a 'code' field for specific error types
+      // Common Firebase auth errors
       if (err.code === 'auth/email-already-in-use') {
-        alert('Registration failed: The email address is already in use by another account.');
+        alert('The email address is already in use by another account.');
       } else if (err.code === 'auth/invalid-email') {
-        alert('Registration failed: The email address is invalid.');
+        alert('The email address is invalid.');
       } else if (err.code === 'auth/weak-password') {
-        alert('Registration failed: The password is too weak. Please choose a stronger one.');
+        alert('Please choose a stronger password.');
       } else {
         alert('Registration failed: ' + err.message);
       }
@@ -106,7 +105,7 @@ export default function SignUp() {
             <TextInput
               style={[styles.input, styles.usernameInput]}
               value={username}
-              onChangeText={(text) => setUsername(text.toLowerCase().replace(/\s/g, ''))} // Ensure username is lowercase and no spaces
+              onChangeText={(text) => setUsername(text.toLowerCase().replace(/\s/g, ''))} // force username lowercase + no spaces
               autoCapitalize="none"
               placeholder="Username"
               placeholderTextColor="#8e8e93"

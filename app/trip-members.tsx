@@ -1,8 +1,8 @@
-import auth from '@react-native-firebase/auth'; // Import auth
+import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 interface TripMember {
-  id: string; // User's UID
+  id: string;
   username: string;
   displayName: string;
 }
@@ -31,7 +31,7 @@ interface Trip {
 
 export default function TripMembersScreen() {
   const router = useRouter();
-  const navigation = useNavigation(); // Not strictly needed for this file based on current usage
+  const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,7 +89,7 @@ export default function TripMembersScreen() {
         }
       });
     return unsubscribe;
-  }, [tripId, currentUser]); // Depend on currentUser to re-run access check
+  }, [tripId, currentUser]);
 
   // Search users based on query
   useEffect(() => {
@@ -105,7 +105,7 @@ export default function TripMembersScreen() {
       let foundUsers: TripMember[] = [];
 
       try {
-        // Try searching by username (exact match for username)
+        // Search by exact username first
         const usernameSnapshot = await usersRef
           .where('username', '==', query)
           .limit(1)
@@ -119,7 +119,7 @@ export default function TripMembersScreen() {
           });
         });
 
-        // If username not found, search by displayName (case-insensitive contains)
+        // If username not found, search by displayName
         if (foundUsers.length === 0) {
           const displayNameSnapshot = await usersRef
             .orderBy('displayName')
@@ -139,7 +139,7 @@ export default function TripMembersScreen() {
           });
         }
 
-        // Filter out already selected members for this trip
+        // Filter out already selected members and the current user
         const uniqueFoundUsers = foundUsers.filter(
           user => !trip?.members.some(member => member.id === user.id)
         );
@@ -157,7 +157,7 @@ export default function TripMembersScreen() {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, trip?.members]); // Depend on trip members to update search results
+  }, [searchQuery, trip?.members]);
 
   const addMember = async (user: TripMember) => {
     if (!trip) return;
@@ -170,7 +170,7 @@ export default function TripMembersScreen() {
         .collection('trips')
         .doc(trip.id)
         .update({
-          members: [...trip.members, user], // Store full member object
+          members: [...trip.members, user],
         });
       setSearchQuery('');
       setSearchResults([]); // Clear search results after adding
@@ -188,6 +188,7 @@ export default function TripMembersScreen() {
       return;
     }
 
+    // Should never happen, just in case.
     if (memberToRemove.id === currentUser.id) {
       Alert.alert('Error', 'You cannot remove yourself from the trip here.');
       return;
@@ -221,13 +222,42 @@ export default function TripMembersScreen() {
     );
   };
 
+  const orderedMembers = useMemo(() => {
+    if (!trip || !currentUser) {
+      return [];
+    }
+
+    const membersWithoutCurrentUser = trip.members.filter(
+      member => member.id !== currentUser.id
+    );
+
+    // Sort remaining members alphabetically by display name
+    membersWithoutCurrentUser.sort((a, b) =>
+      a.displayName.localeCompare(b.displayName)
+    );
+
+    // Add current user to the beginning of list
+    const currentUserAsMember = trip.members.find(
+      member => member.id === currentUser.id
+    );
+
+    if (currentUserAsMember) {
+      return [currentUserAsMember, ...membersWithoutCurrentUser];
+    } else {
+      // Added this statement to prevent an error message for if 
+      // currentUserAsMember = null (should never happen)
+      return membersWithoutCurrentUser;
+    }
+
+  }, [trip, currentUser]);
+
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
       <Text style={styles.memberUsername}>
         <Text style={{ fontWeight: 'bold' }}>{item.displayName}</Text>{' '}
         <Text style={styles.usernameText}>@{item.username}</Text>
       </Text>
-      {currentUser?.id !== item.id && ( // Prevent removing self
+      {currentUser?.id !== item.id && ( // Disable remove button for oneself
         <TouchableOpacity
           style={styles.removeButton}
           onPress={() => removeMember(item)}
@@ -335,10 +365,10 @@ export default function TripMembersScreen() {
           </View>
           <View style={styles.membersSection}>
             <Text style={styles.sectionTitle}>
-              Current Members ({trip.members.length})
+              Current Members ({orderedMembers.length})
             </Text>
             <FlatList
-              data={trip.members}
+              data={orderedMembers}
               renderItem={renderMemberItem}
               keyExtractor={item => item.id}
               style={styles.membersList}

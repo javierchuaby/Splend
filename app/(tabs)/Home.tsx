@@ -19,7 +19,7 @@ import {
 
 // Types
 interface TripMember {
-  id: string; // This will now be the user's UID
+  id: string; 
   username: string;
   displayName: string;
 }
@@ -52,12 +52,10 @@ export default function HomeScreen() {
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [searchResults, setSearchResults] = useState<TripMember[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-
-  // Date picker state
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
 
-  // Fetch current user's details for auto-adding to trip
+  // Fetch current user to add to trip (allows for one-person trips)
   useEffect(() => {
     const fetchCurrentUser = async () => {
       const user = auth().currentUser;
@@ -88,9 +86,9 @@ export default function HomeScreen() {
     );
   };
 
-  // Real-time listener for trips (only show trips where current user is a member)
+  // Eager fetching of trips for live-updating
   useEffect(() => {
-    if (!currentUser) return; // Wait until current user is loaded
+    if (!currentUser) return;
 
     const unsubscribe = firestore()
       .collection('trips')
@@ -106,7 +104,7 @@ export default function HomeScreen() {
             return {
               id: doc.id,
               name: data.name,
-              members: data.members as TripMember[], // Explicitly type the members array
+              members: data.members as TripMember[],
               startDate: data.startDate.toDate(),
               endDate: data.endDate.toDate(),
               createdAt: data.createdAt?.toDate() ?? new Date(),
@@ -114,14 +112,14 @@ export default function HomeScreen() {
           })
           .filter((trip: Trip) => 
             trip.members.some((member: TripMember) => member.id === currentUser.id)
-          ); // Explicitly type the parameters
+          );
 
         setTrips(tripsData);
       });
     return unsubscribe;
   }, [currentUser]);
 
-  // Search users based on query
+  // Search for users
   useEffect(() => {
     const searchUsers = async () => {
       if (!memberSearchQuery.trim()) {
@@ -135,10 +133,10 @@ export default function HomeScreen() {
       let foundUsers: TripMember[] = [];
 
       try {
-        // Try searching by username (exact match for username)
+        // Search by exact username first
         const usernameSnapshot = await usersRef
           .where('username', '==', query)
-          .limit(1) // Assuming username is unique
+          .limit(1)
           .get();
         usernameSnapshot.forEach(doc => {
           const userData = doc.data();
@@ -149,17 +147,16 @@ export default function HomeScreen() {
           });
         });
 
-        // If username not found, search by displayName (case-insensitive contains)
+        // If username not found, search by displayName
         if (foundUsers.length === 0) {
           const displayNameSnapshot = await usersRef
             .orderBy('displayName')
-            .startAt(query.charAt(0).toUpperCase() + query.slice(1)) // Case-insensitive start for display name
+            .startAt(query.charAt(0).toUpperCase() + query.slice(1))
             .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
             .get();
 
           displayNameSnapshot.forEach(doc => {
             const userData = doc.data();
-            // Basic client-side filtering for 'contains' on display name
             if (userData.displayName.toLowerCase().includes(query)) {
               foundUsers.push({
                 id: doc.id,
@@ -187,7 +184,7 @@ export default function HomeScreen() {
 
     const handler = setTimeout(() => {
       searchUsers();
-    }, 300); // Debounce search
+    }, 300);
 
     return () => clearTimeout(handler);
   }, [memberSearchQuery, selectedMembers, currentUser]);
@@ -204,16 +201,12 @@ export default function HomeScreen() {
     }
 
     const allMembers = [
-      currentUser, // Add creator automatically
-      ...selectedMembers.filter(member => member.id !== currentUser.id), // Ensure no duplicates
+      currentUser,
+      ...selectedMembers.filter(member => member.id !== currentUser.id),
     ];
 
-    if (allMembers.length === 0) {
-      Alert.alert('Error', 'Trip must have at least one member (you)');
-      return;
-    }
     if (startDate > endDate) {
-      Alert.alert('Error', 'End date must be on or after start date');
+      Alert.alert('Time Travel Much?', 'It looks like your trip ends before it starts.');
       return;
     }
 
@@ -234,7 +227,7 @@ export default function HomeScreen() {
       setEndDate(new Date());
       setIsModalVisible(false);
 
-      // Open the newly-created trip
+      // Navigate to the newly-created trip
       router.push({
       pathname: '/trip-view',
       params: { tripId: docRef.id },
@@ -279,7 +272,7 @@ export default function HomeScreen() {
     const months: MonthOption[] = [];
     const days: number[] = [];
 
-    // Years (current year + 5 years)
+    // Years
     for (let i = 0; i < 6; i++) {
       years.push(today.getFullYear() + i);
     }
@@ -303,7 +296,7 @@ export default function HomeScreen() {
       months.push({ label: month, value: index });
     });
 
-    // Days (1-31)
+    // Days
     for (let i = 1; i <= 31; i++) {
       days.push(i);
     }
@@ -324,7 +317,7 @@ export default function HomeScreen() {
     setShowEndDatePicker(false);
   };
 
-  // Navigate to trip view
+  // Navigate to Trip View
   const navigateToTrip = (trip: Trip) => {
     router.push({
       pathname: '/trip-view',
@@ -332,7 +325,7 @@ export default function HomeScreen() {
     });
   };
 
-  // Render trip item
+  // Render Trip
   const renderTripItem = ({ item }: { item: Trip }) => (
     <TouchableOpacity
       style={styles.tripCard}
@@ -363,12 +356,12 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1e1e1e" barStyle="light-content" />
 
-      {/* New title at the very top */}
+      {/* BIG app title */}
       <View style={styles.pageTitleContainer}>
-        <Text style={styles.pageTitle}>Splend</Text>
+        <Text style={styles.pageTitle}>Splend!</Text>
       </View>
 
-      {/* Existing header */}
+      {/* My Trips header */}
       <View style={styles.header}>
         <Text style={styles.title}>My Trips</Text>
         <TouchableOpacity
@@ -384,12 +377,12 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Welcome message above trip cards */}
-      <View style={styles.welcomeContainer}>
+      {/* Welcome message (might delete?) */}
+      {/* <View style={styles.welcomeContainer}>
         <Text style={styles.signOutWelcomeText}>
           {currentUser?.displayName ? `Welcome back, ${currentUser.displayName}` : "Welcome to Splend!"}
         </Text>
-      </View>
+      </View> */}
 
       {trips.length === 0 ? (
         <View style={styles.emptyState}>
@@ -408,7 +401,7 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* Create Trip Modal */}
+      {/* New Trip creation modal (pop up thingy from bottom) */}
       <Modal
         visible={isModalVisible}
         animationType="slide"
@@ -468,7 +461,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Member Search */}
+            {/* Member Selection */}
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Add Members</Text>
               <TextInput
@@ -480,7 +473,7 @@ export default function HomeScreen() {
                 keyboardAppearance="dark"
               />
 
-              {/* Search Results */}
+              {/* Member Search Results */}
               {memberSearchQuery.length > 0 && (
                 <View style={styles.searchResults}>
                   {isLoadingUsers ? (
@@ -688,7 +681,7 @@ export default function HomeScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Fixed Sign Out button at bottom */}
+      {/* Fixed Sign Out button at bottom (temporary) */}
       <View style={styles.signOutContainer}>
         <SignOutButton />
       </View>

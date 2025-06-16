@@ -7,8 +7,8 @@ export default function TabLayout() {
       tabBarActiveTintColor: '#305cde',
       tabBarInactiveTintColor: '#fff',
       tabBarStyle: {
-          backgroundColor: '#1e1e1e',     // <-- Set this to match your page background
-          borderTopWidth: 0,              // Optional: removes the top border for a cleaner look
+          backgroundColor: '#1e1e1e',     
+          borderTopWidth: 0,              
         },
       }}>
       <Tabs.Screen
@@ -28,15 +28,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="trips"
+        name="profile"
         options={{
-          href: null, // This hides the trips folder from the tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="members"
-        options={{
-          href: null, // This hides the members folder from the tab bar
+          title: 'My Profile',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <FontAwesome name="user" size={24} color={color} />,
         }}
       />
     </Tabs>
