@@ -1,5 +1,6 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
@@ -150,6 +151,12 @@ export default function ProfileScreen() {
           }}
         >
           <Text style={styles.settingsButtonText}>Change Password</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => useRouter().push('/concluded-trips')}
+            >
+            <Text style={styles.settingsButtonText}>Concluded Trips</Text>
         </TouchableOpacity>
       </View>
 

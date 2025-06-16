@@ -334,7 +334,7 @@ export default function HomeScreen() {
           </Text>
         ))}
         {item.members.length > 3 && (
-          <Text style={styles.memberName}>+{item.members.length - 3} more</Text>
+          <Text style={styles.memberName}> +{item.members.length - 3} more</Text>
         )}
       </View>
     </TouchableOpacity>

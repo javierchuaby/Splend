@@ -158,7 +158,40 @@ export default function TripViewScreen() {
     );
   };
 
-  const concludeTrip = deleteTrip; // For simplicity, conclude is delete
+  const concludeTrip = async () => {
+    if (!trip) return;
+
+    Alert.alert(
+      'Complete Trip',
+      `Are you sure you want to conclude "${trip.name}"? This will archive the trip and remove it from active trips.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          style: 'default',
+          onPress: async () => {
+            try {
+              // Push trip data to `archived-trips` collection
+              await firestore().collection('archived-trips').doc(trip.id).set({
+                name: trip.name,
+                members: trip.members,
+                startDate: firestore.Timestamp.fromDate(trip.startDate),
+                endDate: firestore.Timestamp.fromDate(trip.endDate),
+                createdAt: firestore.Timestamp.fromDate(trip.createdAt),
+              });
+
+              // Delete trip from `trips` collection
+              await firestore().collection('trips').doc(trip.id).delete();
+              router.back();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to complete trip');
+              console.error(error);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
