@@ -499,7 +499,10 @@ export default function HomeScreen() {
                     <View key={member.id} style={styles.selectedMemberItem}>
                       <Text style={styles.selectedMemberText}>
                         <Text style={{ fontWeight: 'bold' }}>
-                          {member.displayName}
+                          {member.displayName.length > 24
+                            ? `${member.displayName.substring(0, 24)}...`
+                            : member.displayName
+                          }
                         </Text>{' '}
                         <Text style={styles.usernameText}>
                           @{member.username}
@@ -509,7 +512,7 @@ export default function HomeScreen() {
                         <TouchableOpacity
                           onPress={() => removeMember(member.id)}
                         >
-                          <Text style={styles.removeMemberButton}>×</Text>
+                          <Text style={styles.removeMemberButton}>remove</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -889,12 +892,14 @@ const styles = StyleSheet.create({
   selectedMemberText: {
     fontSize: 14,
     color: '#fff',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   removeMemberButton: {
-    fontSize: 18,
+    fontSize: 14,
     color: '#ff453a',
     fontWeight: 'bold',
-    paddingHorizontal: 8,
+    paddingHorizontal: 2,
   },
   datePickerContainer: {
     position: 'absolute',
