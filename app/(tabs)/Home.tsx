@@ -74,18 +74,6 @@ export default function HomeScreen() {
     fetchCurrentUser();
   }, []);
 
-  // Sign-out Button
-  const SignOutButton = () => {
-    return (
-      <TouchableOpacity
-        style={styles.signOutButton}
-        onPress={() => auth().signOut()}
-      >
-        <Text style={styles.signOutButtonText}>Sign Out</Text>
-      </TouchableOpacity>
-    );
-  };
-
   // Eager fetching of trips for live-updating
   useEffect(() => {
     if (!currentUser) return;
@@ -680,11 +668,6 @@ export default function HomeScreen() {
           )}
         </SafeAreaView>
       </Modal>
-
-      {/* Fixed Sign Out button at bottom (temporary) */}
-      <View style={styles.signOutContainer}>
-        <SignOutButton />
-      </View>
     </SafeAreaView>
   );
 }
