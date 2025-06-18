@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 
+// Types
 interface TripMember {
   id: string; // User's UID
   username: string;
@@ -23,11 +24,15 @@ interface TripMember {
 
 interface Trip {
   id: string;
-  name: string;
+  name: string; // This will now refer to 'tripName' from Firestore
   members: TripMember[];
   startDate: Date;
   endDate: Date;
   createdAt: Date;
+  // New fields from the updated Firestore structure
+  tripDescription: string;
+  isConcluded: boolean;
+  eventIds: string[];
 }
 
 interface MonthOption {
@@ -83,11 +88,21 @@ export default function TripViewScreen() {
             const data = doc.data();
             const currentTrip: Trip = {
               id: doc.id,
-              name: data!.name,
-              members: data!.members,
+              name: data!.tripName, // Use 'tripName' from Firestore
+              members: data!.members.map((member: any) => ({ // Map members to TripMember interface
+                id: member.uid, // Use 'uid' for member ID
+                username: member.username,
+                displayName: member.displayName,
+                // billIds: member.billIds || [], // Assuming these might exist for existing members
+                // totalSpent: member.totalSpent || 0,
+                // totalPaid: member.totalPaid || 0,
+              })),
               startDate: data!.startDate.toDate(),
               endDate: data!.endDate.toDate(),
               createdAt: data!.createdAt?.toDate() ?? new Date(),
+              tripDescription: data!.tripDescription || '', // Include new field
+              isConcluded: data!.isConcluded || false, // Include new field
+              eventIds: data!.eventIds || [], // Include new field
             };
             setTrip(currentTrip);
 
@@ -115,19 +130,29 @@ export default function TripViewScreen() {
 
   const saveTrip = async (updatedFields: Partial<Trip>) => {
     if (!trip) return;
+
+    // Convert updatedFields to match Firestore keys
+    const firestoreUpdate: { [key: string]: any } = {};
+    if (updatedFields.name !== undefined) firestoreUpdate.tripName = updatedFields.name; // Map 'name' to 'tripName'
+    if (updatedFields.startDate !== undefined) firestoreUpdate.startDate = firestore.Timestamp.fromDate(updatedFields.startDate);
+    if (updatedFields.endDate !== undefined) firestoreUpdate.endDate = firestore.Timestamp.fromDate(updatedFields.endDate);
+    if (updatedFields.members !== undefined) firestoreUpdate.members = updatedFields.members.map(m => ({
+      uid: m.id,
+      username: m.username,
+      displayName: m.displayName,
+      billIds: [], // Keep default values as specified by new structure
+      totalSpent: 0,
+      totalPaid: 0,
+    }));
+    // Add other fields if they become editable in the future
+    if (updatedFields.tripDescription !== undefined) firestoreUpdate.tripDescription = updatedFields.tripDescription;
+    if (updatedFields.isConcluded !== undefined) firestoreUpdate.isConcluded = updatedFields.isConcluded;
+
     try {
       await firestore()
         .collection('trips')
         .doc(trip.id)
-        .update({
-          ...updatedFields,
-          ...(updatedFields.startDate && {
-            startDate: firestore.Timestamp.fromDate(updatedFields.startDate),
-          }),
-          ...(updatedFields.endDate && {
-            endDate: firestore.Timestamp.fromDate(updatedFields.endDate),
-          }),
-        });
+        .update(firestoreUpdate);
     } catch (error) {
       Alert.alert('Error', 'Failed to update trip');
       console.error(error);
@@ -171,18 +196,12 @@ export default function TripViewScreen() {
           style: 'default',
           onPress: async () => {
             try {
-              // Push trip data to `archived-trips` collection
-              await firestore().collection('archived-trips').doc(trip.id).set({
-                name: trip.name,
-                members: trip.members,
-                startDate: firestore.Timestamp.fromDate(trip.startDate),
-                endDate: firestore.Timestamp.fromDate(trip.endDate),
-                createdAt: firestore.Timestamp.fromDate(trip.createdAt),
+              // Update isConcluded field to true
+              await firestore().collection('trips').doc(trip.id).update({
+                isConcluded: true,
               });
 
-              // Delete trip from `trips` collection
-              await firestore().collection('trips').doc(trip.id).delete();
-              router.back();
+              router.back(); // Navigate back after concluding
             } catch (error) {
               Alert.alert('Error', 'Failed to complete trip');
               console.error(error);
@@ -214,6 +233,14 @@ export default function TripViewScreen() {
   const navigateToMembers = () => {
     router.push({
       pathname: '/trip-members',
+      params: { tripId: trip?.id },
+    });
+  };
+
+  // Navigate to trip description editing screen
+  const navigateToDescription = () => {
+    router.push({
+      pathname: '/trip-description', // Path to the new screen
       params: { tripId: trip?.id },
     });
   };
@@ -327,6 +354,25 @@ export default function TripViewScreen() {
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
             <Text style={styles.tripTitle}>{trip.name}</Text>
+
+            {/* New Description Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <TouchableOpacity
+                style={styles.descriptionCard}
+                onPress={navigateToDescription} // Navigate to new description screen
+              >
+                <Text
+                  style={styles.descriptionText}
+                  numberOfLines={4} // Limit to 4 lines
+                  ellipsizeMode="tail" // Show ellipses if truncated
+                >
+                  {trip.tripDescription || 'No description provided. Tap to add one.'}
+                </Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Duration</Text>
               <View style={styles.dateRow}>
@@ -387,11 +433,14 @@ export default function TripViewScreen() {
             </View>
           </View>
         </ScrollView>
-        <View style={styles.concludeSection}>
-          <TouchableOpacity style={styles.concludeButton} onPress={concludeTrip}>
-            <Text style={styles.concludeButtonText}>Conclude Trip</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Only show conclude button if trip is not already concluded */}
+        {!trip.isConcluded && (
+          <View style={styles.concludeSection}>
+            <TouchableOpacity style={styles.concludeButton} onPress={concludeTrip}>
+              <Text style={styles.concludeButtonText}>Conclude Trip</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.deleteSection}>
           <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
             <Text style={styles.deleteButtonText}>Delete Trip</Text>
@@ -627,6 +676,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  // Styles for the new description card
+  descriptionCard: {
+    backgroundColor: '#1e1e1e',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 80, // Minimum height for the box
+  },
+  descriptionText: {
+    flex: 1, // Allow text to take up available space
+    fontSize: 14,
+    color: '#aaa',
+    lineHeight: 20, // Adjust line height for readability
   },
   dateRow: {
     flexDirection: 'row',

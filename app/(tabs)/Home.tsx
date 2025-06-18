@@ -19,7 +19,7 @@ import {
 
 // Types
 interface TripMember {
-  id: string; 
+  id: string;
   username: string;
   displayName: string;
 }
@@ -31,6 +31,10 @@ interface Trip {
   startDate: Date;
   endDate: Date;
   createdAt: Date;
+  // Added new fields for the Trip interface
+  tripDescription: string;
+  isConcluded: boolean;
+  eventIds: string[];
 }
 
 interface MonthOption {
@@ -43,6 +47,8 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newTripName, setNewTripName] = useState('');
+  // New state for trip description
+  const [newTripDescription, setNewTripDescription] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<TripMember[]>([]);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [startDate, setStartDate] = useState(new Date());
@@ -91,14 +97,21 @@ export default function HomeScreen() {
             const data = doc.data();
             return {
               id: doc.id,
-              name: data.name,
-              members: data.members as TripMember[],
+              name: data.tripName, // Use tripName
+              members: data.members.map((member: any) => ({ // Map members to TripMember interface
+                id: member.uid,
+                username: member.username,
+                displayName: member.displayName,
+              })),
               startDate: data.startDate.toDate(),
               endDate: data.endDate.toDate(),
               createdAt: data.createdAt?.toDate() ?? new Date(),
+              tripDescription: data.tripDescription || '', // Include new field
+              isConcluded: data.isConcluded || false, // Include new field
+              eventIds: data.eventIds || [], // Include new field
             };
           })
-          .filter((trip: Trip) => 
+          .filter((trip: Trip) =>
             trip.members.some((member: TripMember) => member.id === currentUser.id)
           );
 
@@ -191,7 +204,14 @@ export default function HomeScreen() {
     const allMembers = [
       currentUser,
       ...selectedMembers.filter(member => member.id !== currentUser.id),
-    ];
+    ].map(member => ({
+      uid: member.id,
+      username: member.username,
+      displayName: member.displayName,
+      billIds: [],
+      totalSpent: 0,
+      totalPaid: 0,
+    }));
 
     if (startDate > endDate) {
       Alert.alert('Time Travel Much?', 'It looks like your trip ends before it starts.');
@@ -200,15 +220,19 @@ export default function HomeScreen() {
 
     try {
       const docRef = await firestore().collection('trips').add({
-        name: newTripName.trim(),
-        members: allMembers,
+        tripName: newTripName.trim(),
+        tripDescription: newTripDescription.trim(), // Save the new trip description
         startDate: firestore.Timestamp.fromDate(startDate),
         endDate: firestore.Timestamp.fromDate(endDate),
+        members: allMembers,
+        eventIds: [],
         createdAt: firestore.FieldValue.serverTimestamp(),
+        isConcluded: false,
       });
 
       // Reset form
       setNewTripName('');
+      setNewTripDescription(''); // Reset trip description
       setSelectedMembers([]);
       setMemberSearchQuery('');
       setStartDate(new Date());
@@ -217,9 +241,9 @@ export default function HomeScreen() {
 
       // Navigate to the newly-created trip
       router.push({
-      pathname: '/trip-view',
-      params: { tripId: docRef.id },
-    });
+        pathname: '/trip-view',
+        params: { tripId: docRef.id },
+      });
     } catch (error) {
       Alert.alert('Error', 'Failed to create trip');
       console.error(error);
@@ -417,6 +441,21 @@ export default function HomeScreen() {
                 placeholder="Enter trip name"
                 placeholderTextColor="#777"
                 keyboardAppearance="dark"
+              />
+            </View>
+
+            {/* Trip Description */}
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>Trip Description (Optional)</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                value={newTripDescription}
+                onChangeText={setNewTripDescription}
+                placeholder="Describe your trip..."
+                placeholderTextColor="#777"
+                keyboardAppearance="dark"
+                multiline={true} // Allow multiple lines
+                numberOfLines={4} // Hint for initial height
               />
             </View>
 
@@ -820,6 +859,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#1e1e1e',
     color: '#fff',
+  },
+  // New style for multiline TextInput
+  textArea: {
+    minHeight: 100, // Adjust height as needed
+    textAlignVertical: 'top', // Align text to the top for multiline
   },
   dateRow: {
     flexDirection: 'row',
