@@ -47,7 +47,6 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newTripName, setNewTripName] = useState('');
-  // New state for trip description
   const [newTripDescription, setNewTripDescription] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<TripMember[]>([]);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -61,7 +60,7 @@ export default function HomeScreen() {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
 
-  // Fetch current user to add to trip (allows for one-person trips)
+  // Fetch current user to add to trip (would be stupid if user had to add themselves)
   useEffect(() => {
     const fetchCurrentUser = async () => {
       const user = auth().currentUser;
@@ -86,29 +85,25 @@ export default function HomeScreen() {
 
     const unsubscribe = firestore()
       .collection('trips')
-      .orderBy('createdAt', 'desc')
+      .orderBy('startDate')
       .onSnapshot(snapshot => {
-        if (!snapshot) {
-          return;
-        }
-
-        const tripsData: Trip[] = snapshot.docs
+        const tripsData = snapshot.docs
           .map(doc => {
             const data = doc.data();
             return {
               id: doc.id,
-              name: data.tripName, // Use tripName
-              members: data.members.map((member: any) => ({ // Map members to TripMember interface
+              name: data.tripName,
+              members: data.members.map((member: any) => ({
                 id: member.uid,
                 username: member.username,
                 displayName: member.displayName,
               })),
               startDate: data.startDate.toDate(),
               endDate: data.endDate.toDate(),
-              createdAt: data.createdAt?.toDate() ?? new Date(),
-              tripDescription: data.tripDescription || '', // Include new field
-              isConcluded: data.isConcluded || false, // Include new field
-              eventIds: data.eventIds || [], // Include new field
+              createdAt: data.createdAt?.toDate(),
+              tripDescription: data.tripDescription,
+              isConcluded: data.isConcluded,
+              eventIds: data.eventIds,
             };
           })
           .filter((trip: Trip) =>
@@ -118,7 +113,7 @@ export default function HomeScreen() {
         setTrips(tripsData);
       });
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser]); // [currentUser] ensures that this useEffect re-runs whenever currentUser changes.
 
   // Search for users
   useEffect(() => {
@@ -133,54 +128,49 @@ export default function HomeScreen() {
       const usersRef = firestore().collection('users');
       let foundUsers: TripMember[] = [];
 
-      try {
-        // Search by exact username first
-        const usernameSnapshot = await usersRef
-          .where('username', '==', query)
-          .limit(1)
-          .get();
-        usernameSnapshot.forEach(doc => {
-          const userData = doc.data();
-          foundUsers.push({
-            id: doc.id,
-            username: userData.username,
-            displayName: userData.displayName,
-          });
+      // Search by exact username first
+      const usernameSnapshot = await usersRef
+        .where('username', '==', query)
+        .limit(1)
+        .get();
+      usernameSnapshot.forEach(doc => {
+        const userData = doc.data();
+        foundUsers.push({
+          id: doc.id,
+          username: userData.username,
+          displayName: userData.displayName,
         });
+      });
 
-        // If username not found, search by displayName
-        if (foundUsers.length === 0) {
-          const displayNameSnapshot = await usersRef
-            .orderBy('displayName')
-            .startAt(query.charAt(0).toUpperCase() + query.slice(1))
-            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
-            .get();
+      // If username not found, search by displayName
+      if (foundUsers.length === 0) {
+        const displayNameSnapshot = await usersRef
+          .orderBy('displayName')
+          .startAt(query.charAt(0).toUpperCase() + query.slice(1))
+          .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
+          .get();
 
-          displayNameSnapshot.forEach(doc => {
-            const userData = doc.data();
-            if (userData.displayName.toLowerCase().includes(query)) {
-              foundUsers.push({
-                id: doc.id,
-                username: userData.username,
-                displayName: userData.displayName,
-              });
-            }
-          });
-        }
-
-        // Filter out already selected members and the current user
-        const uniqueFoundUsers = foundUsers.filter(
-          user =>
-            !selectedMembers.some(member => member.id === user.id) &&
-            currentUser?.id !== user.id
-        );
-        setSearchResults(uniqueFoundUsers);
-      } catch (error) {
-        console.error('Error searching users:', error);
-        setSearchResults([]);
-      } finally {
-        setIsLoadingUsers(false);
+        displayNameSnapshot.forEach(doc => {
+          const userData = doc.data();
+          if (userData.displayName.toLowerCase().includes(query)) {
+            foundUsers.push({
+              id: doc.id,
+              username: userData.username,
+              displayName: userData.displayName,
+            });
+          }
+        });
       }
+
+      // Filter out already selected members and the current user
+      const uniqueFoundUsers = foundUsers.filter(
+        user =>
+          !selectedMembers.some(member => member.id === user.id) &&
+          currentUser?.id !== user.id
+      );
+
+      setSearchResults(uniqueFoundUsers);
+      setIsLoadingUsers(false);
     };
 
     const handler = setTimeout(() => {
@@ -193,11 +183,11 @@ export default function HomeScreen() {
   // Create new trip in Firestore
   const createTrip = async () => {
     if (!newTripName.trim()) {
-      Alert.alert('Error', 'Please enter a trip name');
+      Alert.alert('We\'re going on a what?', 'Please enter a trip name.');
       return;
     }
     if (!currentUser) {
-      Alert.alert('Error', 'Current user data not loaded. Please try again.');
+      Alert.alert('Fatal error', 'Current user data not loaded. Please try again.');
       return;
     }
 
@@ -221,7 +211,7 @@ export default function HomeScreen() {
     try {
       const docRef = await firestore().collection('trips').add({
         tripName: newTripName.trim(),
-        tripDescription: newTripDescription.trim(), // Save the new trip description
+        tripDescription: newTripDescription.trim(),
         startDate: firestore.Timestamp.fromDate(startDate),
         endDate: firestore.Timestamp.fromDate(endDate),
         members: allMembers,
@@ -232,7 +222,7 @@ export default function HomeScreen() {
 
       // Reset form
       setNewTripName('');
-      setNewTripDescription(''); // Reset trip description
+      setNewTripDescription('');
       setSelectedMembers([]);
       setMemberSearchQuery('');
       setStartDate(new Date());
@@ -245,7 +235,7 @@ export default function HomeScreen() {
         params: { tripId: docRef.id },
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to create trip');
+      Alert.alert('Failed to create trip', 'Looks like we were not destined to join you on your trip. :C');
       console.error(error);
     }
   };
@@ -255,7 +245,7 @@ export default function HomeScreen() {
     if (!selectedMembers.some(member => member.id === user.id)) {
       setSelectedMembers([...selectedMembers, user]);
       setMemberSearchQuery('');
-      setSearchResults([]); // Clear search results after adding
+      setSearchResults([]);
     }
   };
 
@@ -369,9 +359,9 @@ export default function HomeScreen() {
       <StatusBar backgroundColor="#1e1e1e" barStyle="light-content" />
 
       {/* BIG app title */}
-      <View style={styles.pageTitleContainer}>
+      {/* <View style={styles.pageTitleContainer}>
         <Text style={styles.pageTitle}>Splend!</Text>
-      </View>
+      </View> */}
 
       {/* My Trips header */}
       <View style={styles.header}>

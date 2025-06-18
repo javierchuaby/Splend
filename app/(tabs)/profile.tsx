@@ -1,16 +1,15 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function ProfileScreen() {
@@ -121,6 +120,9 @@ export default function ProfileScreen() {
         <Text style={styles.displayNameText}>
           {currentUser?.displayName || 'User'}
         </Text>
+        <Text style={styles.greetingText}>
+          @{currentUser?.username || 'username'}
+        </Text>
       </View>
 
       {/* Settings Buttons */}
@@ -151,12 +153,6 @@ export default function ProfileScreen() {
           }}
         >
           <Text style={styles.settingsButtonText}>Change Password</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => useRouter().push('/concluded-trips')}
-            >
-            <Text style={styles.settingsButtonText}>Concluded Trips</Text>
         </TouchableOpacity>
       </View>
 
