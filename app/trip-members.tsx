@@ -14,6 +14,16 @@ import {
   View,
 } from 'react-native';
 
+// Type representing a member in Firestore's trip document (just the UID)
+interface FirestoreTripMemberRef {
+  uid: string; // The user's UID
+  // You might still store these if you want a fallback or to reduce reads,
+  // but the current request implies they are removed or will be ignored by fetch.
+  // username?: string;
+  // displayName?: string;
+}
+
+// Type representing a fully hydrated TripMember for UI display
 interface TripMember {
   id: string; // This corresponds to `uid` in the `users` collection
   username: string;
@@ -23,15 +33,19 @@ interface TripMember {
 interface Trip {
   id: string;
   name: string;
-  members: TripMember[];
+  members: TripMember[]; // This will store the hydrated TripMember objects
   startDate: Date;
   endDate: Date;
   createdAt: Date;
+  // Ensure these exist if they are part of your Firestore trip structure
+  tripDescription?: string;
+  isConcluded?: boolean;
+  eventIds?: string[];
 }
 
 export default function TripMembersScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
+  const navigation = useNavigation(); // Not directly used in this component's logic, but common to keep
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +53,7 @@ export default function TripMembersScreen() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
+  const [isLoadingTrip, setIsLoadingTrip] = useState(true); // New loading state for the trip itself
 
   // Fetch current user's details
   useEffect(() => {
@@ -61,45 +76,53 @@ export default function TripMembersScreen() {
 
   // Fetch trip data and resolve members from `users` collection
   useEffect(() => {
-    if (!tripId || !currentUser) return;
+    if (!tripId || !currentUser) {
+      setIsLoadingTrip(true); // Keep loading if critical data is missing
+      return;
+    }
 
+    setIsLoadingTrip(true); // Start loading when fetch begins
     const unsubscribe = firestore()
       .collection('trips')
       .doc(tripId as string)
       .onSnapshot(async doc => {
         if (doc.exists()) {
           const data = doc.data();
-          const tripMembers = data!.members;
+          // Assuming data.members is now an array of { uid: string } objects
+          const firestoreMembers: FirestoreTripMemberRef[] = data?.members || [];
 
           // Fetch user data for each member from the `users` collection
-          const resolvedMembers: TripMember[] = await Promise.all(
-            tripMembers.map(async (member: { displayName: string, id: string, username: string }) => {
-              const userDoc = await firestore().collection('users').doc(member.id).get();
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                return {
-                  id: member.id,
-                  username: userData?.username,
-                  displayName: userData?.displayName,
-                };
-              } else {
-                // Fall back on old data if things go awry.
-                return {
-                  id: member.id,
-                  username: member.username,
-                  displayName: member.displayName,
-                };
-              }
-            })
-          );
+          const resolvedMembers: TripMember[] = [];
+          for (const memberRef of firestoreMembers) {
+            const userDoc = await firestore().collection('users').doc(memberRef.uid).get();
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              resolvedMembers.push({
+                id: memberRef.uid,
+                username: userData?.username || 'unknown', // Fallback for safety
+                displayName: userData?.displayName || 'Unknown User', // Fallback
+              });
+            } else {
+              // Handle case where user document might not exist (e.g., deleted account)
+              console.warn(`User document for UID ${memberRef.uid} not found.`);
+              resolvedMembers.push({
+                id: memberRef.uid,
+                username: 'deleted',
+                displayName: 'Deleted User',
+              });
+            }
+          }
 
           const currentTrip: Trip = {
             id: doc.id,
-            name: data!.name,
-            members: resolvedMembers,
+            name: data!.tripName, // Assuming `name` is now `tripName` in Firestore
+            members: resolvedMembers, // Use the resolved, hydrated members
             startDate: data!.startDate.toDate(),
             endDate: data!.endDate.toDate(),
             createdAt: data!.createdAt?.toDate() ?? new Date(),
+            tripDescription: data?.tripDescription || '',
+            isConcluded: data?.isConcluded || false,
+            eventIds: data?.eventIds || [],
           };
 
           setTrip(currentTrip);
@@ -112,10 +135,22 @@ export default function TripMembersScreen() {
         } else {
           setTrip(null);
           setHasAccess(false);
+          Alert.alert('Error', 'Trip not found.');
+          router.replace('/'); // Redirect to home if trip doesn't exist
         }
-      });
+        setIsLoadingTrip(false); // Done loading
+      },
+      error => {
+        console.error('Error fetching trip:', error);
+        setTrip(null);
+        setHasAccess(false);
+        setIsLoadingTrip(false);
+        Alert.alert('Error', 'Failed to load trip data.');
+        router.replace('/'); // Redirect to home on error
+      }
+      );
     return unsubscribe;
-  }, [tripId, currentUser]);
+  }, [tripId, currentUser, router]);
 
   // Search users based on query
   useEffect(() => {
@@ -140,21 +175,22 @@ export default function TripMembersScreen() {
           const userData = doc.data();
           foundUsers.push({
             id: doc.id,
-            username: userData.username,
-            displayName: userData.displayName,
+            username: userData?.username,
+            displayName: userData?.displayName,
           });
         });
 
-        // If username not found, search by displayName
+        // If username not found, search by displayName (case-insensitive start/end at for range queries)
         if (foundUsers.length === 0) {
           const displayNameSnapshot = await usersRef
             .orderBy('displayName')
-            .startAt(query.charAt(0).toUpperCase() + query.slice(1))
-            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
+            .startAt(query.charAt(0).toUpperCase() + query.slice(1)) // Case for first letter
+            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff') // Case for first letter
             .get();
 
           displayNameSnapshot.forEach(doc => {
             const userData = doc.data();
+            // Refine search locally if needed (Firestore `contains` is limited)
             if (userData.displayName.toLowerCase().includes(query)) {
               foundUsers.push({
                 id: doc.id,
@@ -165,10 +201,12 @@ export default function TripMembersScreen() {
           });
         }
 
-        // Filter out already selected members and the current user
+        // Filter out already trip members (using their UIDs)
+        const currentTripMemberUids = trip?.members.map(m => m.id) || [];
         const uniqueFoundUsers = foundUsers.filter(
-          user => !trip?.members.some(member => member.id === user.id)
+          user => !currentTripMemberUids.includes(user.id)
         );
+
         setSearchResults(uniqueFoundUsers);
       } catch (error) {
         console.error('Error searching users:', error);
@@ -183,20 +221,25 @@ export default function TripMembersScreen() {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, trip?.members]);
+  }, [searchQuery, trip?.members]); // Depend on trip.members to re-filter if members change
 
-  const addMember = async (user: TripMember) => {
+  const addMember = async (userToAdd: TripMember) => {
     if (!trip) return;
-    if (trip.members.some(member => member.id === user.id)) {
+
+    // Check if user is already a member locally (redundant but good quick check)
+    if (trip.members.some(member => member.id === userToAdd.id)) {
       Alert.alert('Error', 'User is already a member of this trip');
       return;
     }
+
     try {
+      // Update Firestore: Add only the UID to the members array
       await firestore()
         .collection('trips')
         .doc(trip.id)
         .update({
-          members: [...trip.members, user],
+          // Firestore stores just the UID for members
+          members: firestore.FieldValue.arrayUnion({ uid: userToAdd.id }),
         });
       setSearchQuery('');
       setSearchResults([]); // Clear search results after adding
@@ -209,12 +252,13 @@ export default function TripMembersScreen() {
   const removeMember = async (memberToRemove: TripMember) => {
     if (!trip || !currentUser) return;
 
+    // Prevent removing the last member
     if (trip.members.length === 1) {
       Alert.alert('Error', 'Trip must have at least one member.');
       return;
     }
 
-    // Should never happen, just in case.
+    // Prevent removing self
     if (memberToRemove.id === currentUser.id) {
       Alert.alert('Error', 'You cannot remove yourself from the trip here.');
       return;
@@ -230,13 +274,13 @@ export default function TripMembersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Update Firestore: Remove only the UID from the members array
               await firestore()
                 .collection('trips')
                 .doc(trip.id)
                 .update({
-                  members: trip.members.filter(
-                    member => member.id !== memberToRemove.id
-                  ),
+                  // Firestore stores just the UID for members
+                  members: firestore.FieldValue.arrayRemove({ uid: memberToRemove.id }),
                 });
             } catch (error) {
               Alert.alert('Error', 'Failed to remove member');
@@ -248,6 +292,7 @@ export default function TripMembersScreen() {
     );
   };
 
+  // Re-order members for display: Current user first, then others alphabetically
   const orderedMembers = useMemo(() => {
     if (!trip || !currentUser) {
       return [];
@@ -270,11 +315,10 @@ export default function TripMembersScreen() {
     if (currentUserAsMember) {
       return [currentUserAsMember, ...membersWithoutCurrentUser];
     } else {
-      // Added this statement to prevent an error message for if 
-      // currentUserAsMember = null (should never happen)
+      // Fallback: If for some reason current user isn't in trip.members (shouldn't happen
+      // with correct data), just return the rest.
       return membersWithoutCurrentUser;
     }
-
   }, [trip, currentUser]);
 
   const renderMemberItem = ({ item }: { item: TripMember }) => (
@@ -312,8 +356,8 @@ export default function TripMembersScreen() {
     </TouchableOpacity>
   );
 
-  if (!tripId || !currentUser) {
-    // Initial loading or if tripId/currentUser is missing
+  // Unified loading/error handling for the main trip data
+  if (isLoadingTrip) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -333,6 +377,7 @@ export default function TripMembersScreen() {
     );
   }
 
+  // Once loading is complete, check for access or if trip exists
   if (!trip || !hasAccess) {
     return (
       <>
