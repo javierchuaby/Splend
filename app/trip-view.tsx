@@ -93,9 +93,9 @@ export default function TripViewScreen() {
                 id: member.uid, // Use 'uid' for member ID
                 username: member.username,
                 displayName: member.displayName,
-                // billIds: member.billIds || [], // Assuming these might exist for existing members
-                // totalSpent: member.totalSpent || 0,
-                // totalPaid: member.totalPaid || 0,
+                billIds: member.billIds || [], // Assuming these might exist for existing members
+                totalSpent: member.totalSpent || 0,
+                totalPaid: member.totalPaid || 0,
               })),
               startDate: data!.startDate.toDate(),
               endDate: data!.endDate.toDate(),
@@ -133,14 +133,14 @@ export default function TripViewScreen() {
 
     // Convert updatedFields to match Firestore keys
     const firestoreUpdate: { [key: string]: any } = {};
-    if (updatedFields.name !== undefined) firestoreUpdate.tripName = updatedFields.name; // Map 'name' to 'tripName'
+    if (updatedFields.name !== undefined) firestoreUpdate.tripName = updatedFields.name;
     if (updatedFields.startDate !== undefined) firestoreUpdate.startDate = firestore.Timestamp.fromDate(updatedFields.startDate);
     if (updatedFields.endDate !== undefined) firestoreUpdate.endDate = firestore.Timestamp.fromDate(updatedFields.endDate);
     if (updatedFields.members !== undefined) firestoreUpdate.members = updatedFields.members.map(m => ({
       uid: m.id,
       username: m.username,
       displayName: m.displayName,
-      billIds: [], // Keep default values as specified by new structure
+      billIds: [],
       totalSpent: 0,
       totalPaid: 0,
     }));
@@ -187,23 +187,22 @@ export default function TripViewScreen() {
     if (!trip) return;
 
     Alert.alert(
-      'Complete Trip',
+      'Conclude Trip',
       `Are you sure you want to conclude "${trip.name}"? This will archive the trip and remove it from active trips.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Complete',
+          text: 'Conclude',
           style: 'default',
           onPress: async () => {
             try {
-              // Update isConcluded field to true
               await firestore().collection('trips').doc(trip.id).update({
                 isConcluded: true,
               });
 
-              router.back(); // Navigate back after concluding
+              router.back();
             } catch (error) {
-              Alert.alert('Error', 'Failed to complete trip');
+              Alert.alert('Error', 'Failed to conclude trip, please try again');
               console.error(error);
             }
           },

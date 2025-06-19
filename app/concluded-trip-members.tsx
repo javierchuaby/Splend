@@ -3,13 +3,13 @@ import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface TripMember {
@@ -225,9 +225,6 @@ export default function ConcludedTripMembersScreen() {
           {/* Removed Add New Member section (search input, search results) */}
 
           <View style={styles.membersSection}>
-            <Text style={styles.sectionTitle}>
-              Current Members ({orderedMembers.length})
-            </Text>
             <FlatList
               data={orderedMembers}
               renderItem={renderMemberItem}

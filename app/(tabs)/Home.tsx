@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
@@ -31,7 +32,6 @@ interface Trip {
   startDate: Date;
   endDate: Date;
   createdAt: Date;
-  // Added new fields for the Trip interface
   tripDescription: string;
   isConcluded: boolean;
   eventIds: string[];
@@ -59,6 +59,10 @@ export default function HomeScreen() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
+  const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+  const [tripFilter, setTripFilter] = useState<'active' | 'concluded'>(
+    'active'
+  );
 
   // Fetch current user to add to trip (would be stupid if user had to add themselves)
   useEffect(() => {
@@ -107,13 +111,15 @@ export default function HomeScreen() {
             };
           })
           .filter((trip: Trip) =>
-            trip.members.some((member: TripMember) => member.id === currentUser.id)
+            // Filter by current user membership AND the isConcluded status
+            trip.members.some((member: TripMember) => member.id === currentUser.id) &&
+            (tripFilter === 'active' ? !trip.isConcluded : trip.isConcluded)
           );
 
         setTrips(tripsData);
       });
     return unsubscribe;
-  }, [currentUser]); // [currentUser] ensures that this useEffect re-runs whenever currentUser changes.
+  }, [currentUser, tripFilter]); // Re-run when currentUser or tripFilter changes.
 
   // Search for users
   useEffect(() => {
@@ -217,7 +223,7 @@ export default function HomeScreen() {
         members: allMembers,
         eventIds: [],
         createdAt: firestore.FieldValue.serverTimestamp(),
-        isConcluded: false,
+        isConcluded: false, // New trips are by default not concluded
       });
 
       // Reset form
@@ -322,7 +328,7 @@ export default function HomeScreen() {
   // Navigate to Trip View
   const navigateToTrip = (trip: Trip) => {
     router.push({
-      pathname: '/trip-view',
+      pathname: trip.isConcluded ? `/concluded-trip-view` : `/trip-view`,
       params: { tripId: trip.id },
     });
   };
@@ -358,14 +364,47 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1e1e1e" barStyle="light-content" />
 
-      {/* BIG app title */}
-      {/* <View style={styles.pageTitleContainer}>
-        <Text style={styles.pageTitle}>Splend!</Text>
-      </View> */}
-
-      {/* My Trips header */}
+      {/* My Trips header with dropdown */}
       <View style={styles.header}>
-        <Text style={styles.title}>My Trips</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.titleButton}
+            onPress={() => setIsDropdownVisible(!isDropdownVisible)}
+          >
+            <Text style={styles.title}>
+              {tripFilter === 'active' ? 'My Trips' : 'Concluded'}
+            </Text>
+            <MaterialIcons
+              name={isDropdownVisible ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+              size={24}
+              color="#fff"
+              style={styles.dropdownIcon}
+            />
+          </TouchableOpacity>
+          {isDropdownVisible && (
+            <View style={styles.dropdownMenu}>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setTripFilter('active');
+                  setIsDropdownVisible(false);
+                }}
+              >
+                <Text style={styles.dropdownItemText}>My Trips</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setTripFilter('concluded');
+                  setIsDropdownVisible(false);
+                }}
+              >
+                <Text style={styles.dropdownItemText}>Concluded</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         <TouchableOpacity
           style={styles.newTripButton}
           onPress={() => {
@@ -379,18 +418,13 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Welcome message (might delete?) */}
-      {/* <View style={styles.welcomeContainer}>
-        <Text style={styles.signOutWelcomeText}>
-          {currentUser?.displayName ? `Welcome back, ${currentUser.displayName}` : "Welcome to Splend!"}
-        </Text>
-      </View> */}
-
       {trips.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No trips yet</Text>
           <Text style={styles.emptyStateSubtext}>
-            Create your first group trip to get started!
+            {tripFilter === 'active'
+              ? 'Create your first group trip to get started!'
+              : 'You have no concluded trips yet.'}
           </Text>
         </View>
       ) : (
@@ -729,11 +763,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1e1e',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    zIndex: 10, // Ensure header is above FlatList content
+  },
+  headerLeft: {
+    position: 'relative', // For positioning the dropdown menu
+  },
+  titleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  dropdownIcon: {
+    marginLeft: 4,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: '100%', // Position below the button
+    left: 0,
+    backgroundColor: '#2c3e50', // Darker background for dropdown
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
+    width: 150, // Adjust width as needed
+    marginTop: 8, // Space between button and dropdown
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3a4e60', // Lighter border for items
+  },
+  dropdownItemText: {
+    color: '#fff',
+    fontSize: 16,
   },
   newTripButton: {
     backgroundColor: '#305cde',
