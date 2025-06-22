@@ -3,21 +3,18 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 const MOCK_EVENTS = [
-  { id: '1', title: 'Meeting with Alex', date: '2025-06-22', time: '10:00 AM' },
-  { id: '2', title: 'Lunch with Sam', date: '2025-06-22', time: '1:00 PM' },
-  { id: '3', title: 'Dentist Appointment', date: '2025-06-23', time: '3:00 PM' },
-  { id: '4', title: 'Yoga Class', date: '2025-06-24', time: '6:00 PM' },
+  { id: '1', title: 'Meeting with Sponge', date: '2025-06-22', time: '10:00 AM' },
+  { id: '2', title: 'Lunch with Patrick', date: '2025-06-22', time: '1:00 PM' },
+  { id: '3', title: 'Play with Squid', date: '2025-06-23', time: '3:00 PM' },
+  { id: '4', title: 'Eat at Krabbs', date: '2025-06-24', time: '6:00 PM' },
 ];
 
 export default function CalendarScreen() {
-  // Default to today
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
 
-  // Filter events for selected date
   const eventsForSelectedDate = MOCK_EVENTS.filter(event => event.date === selectedDate);
 
-  // For highlighting selected date
   const markedDates = {
     [selectedDate]: {
       selected: true,
