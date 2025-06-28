@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, // Keep Modal for types, but won't be used
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,16 +13,18 @@ import {
   View
 } from 'react-native';
 
-// Types (Keep these consistent with trip-view.tsx)
 interface TripMember {
-  id: string; // User's UID
+  id: string;
   username: string;
   displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 interface Trip {
   id: string;
-  name: string; // This will now refer to 'tripName' from Firestore
+  name: string;
   members: TripMember[];
   startDate: Date;
   endDate: Date;
@@ -42,13 +44,6 @@ export default function ConcludedTripViewScreen() {
   const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
-
-  // Removed date picker states as they are not needed here
-  // const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  // const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  // const [tempStartDate, setTempStartDate] = useState(new Date());
-  // const [tempEndDate, setTempEndDate] = useState(new Date());
-
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +60,9 @@ export default function ConcludedTripViewScreen() {
             id: user.uid,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         }
       }
@@ -72,7 +70,6 @@ export default function ConcludedTripViewScreen() {
     fetchCurrentUser();
   }, []);
 
-  // Real-time listener for this trip and access control
   useEffect(() => {
     if (!tripId || !currentUser) {
       setIsLoading(true);
@@ -105,14 +102,12 @@ export default function ConcludedTripViewScreen() {
               eventIds: data!.eventIds || [],
             };
 
-            // Crucially, check if the trip is actually concluded
             if (!currentTrip.isConcluded) {
-                // If it's not concluded, redirect to the active trip view
                 router.replace({
                     pathname: '/trip-view',
                     params: { tripId: currentTrip.id },
                 });
-                return; // Stop further processing in this component
+                return;
             }
 
             setTrip(currentTrip);
@@ -136,13 +131,7 @@ export default function ConcludedTripViewScreen() {
         }
       );
     return unsubscribe;
-  }, [tripId, currentUser, router]); // Added router to dependency array for replace
-
-  // `saveTrip` is no longer needed as fields are not editable
-  // const saveTrip = async (updatedFields: Partial<Trip>) => {
-  //   if (!trip) return;
-  //   // ... (logic from original saveTrip if you decide to allow some read-only updates)
-  // };
+  }, [tripId, currentUser, router]);
 
   const deleteTrip = async () => {
     if (!trip) return;
@@ -168,9 +157,6 @@ export default function ConcludedTripViewScreen() {
     );
   };
 
-  // `concludeTrip` is not needed as the trip is already concluded
-  // const concludeTrip = async () => { /* ... */ };
-
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -191,25 +177,19 @@ export default function ConcludedTripViewScreen() {
 
   const navigateToMembers = () => {
     router.push({
-      pathname: '/concluded-trip-members', // Changed path for concluded members view
+      pathname: '/concluded-trip-members', 
       params: { tripId: trip?.id },
     });
   };
 
   const navigateToDescription = () => {
     router.push({
-      pathname: '/concluded-trip-description', // Changed path for concluded description view
+      pathname: '/concluded-trip-description', 
       params: { tripId: trip?.id },
     });
   };
 
-  // Date picker related functions are removed as per requirements
-  // const generateDateOptions = (): { /* ... */ } => { /* ... */ };
-  // const { years, months, days } = generateDateOptions();
-  // const handleStartDateDone = async () => { /* ... */ };
-  // const handleEndDateDone = async () => { /* ... */ };
-
-  // Display loading state
+  // Loading...
   if (isLoading) {
     return (
       <>
@@ -228,7 +208,7 @@ export default function ConcludedTripViewScreen() {
     );
   }
 
-  // Display access denied or trip not found
+  // Access denied, just in case
   if (!trip || !hasAccess) {
     return (
       <>
@@ -270,7 +250,7 @@ export default function ConcludedTripViewScreen() {
               <Text style={styles.sectionTitle}>Description</Text>
               <TouchableOpacity
                 style={styles.descriptionCard}
-                onPress={navigateToDescription} // Navigates to concluded description screen
+                onPress={navigateToDescription}
               >
                 <Text
                   style={styles.descriptionText}
@@ -284,11 +264,10 @@ export default function ConcludedTripViewScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Duration Section - Not editable */}
+            {/* Trip Duration */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Duration</Text>
               <View style={styles.dateRow}>
-                {/* Removed TouchableOpacity to make dates non-interactive */}
                 <View style={styles.dateButton}>
                   <Text style={styles.dateButtonText}>
                     Start: {formatDate(trip.startDate)}
@@ -307,12 +286,12 @@ export default function ConcludedTripViewScreen() {
               </View>
             </View>
 
-            {/* Members Section */}
+            {/* Trip Members */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members</Text>
               <TouchableOpacity
                 style={styles.membersCard}
-                onPress={navigateToMembers} // Navigates to concluded members screen
+                onPress={navigateToMembers}
               >
                 <Text style={styles.membersCount}>
                   {trip.members.length} member
@@ -336,16 +315,13 @@ export default function ConcludedTripViewScreen() {
             </View>
           </View>
         </ScrollView>
-        {/* Conclude Trip button is removed */}
 
-        {/* Delete Trip button remains */}
+        {/* Delete Trip button */}
         <View style={styles.deleteSection}>
           <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
             <Text style={styles.deleteButtonText}>Delete Trip</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Date Picker Modals are entirely removed */}
       </SafeAreaView>
     </>
   );
@@ -409,7 +385,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  // Styles for the new description card
   descriptionCard: {
     backgroundColor: '#1e1e1e',
     padding: 16,
@@ -422,19 +397,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 80, // Minimum height for the box
+    minHeight: 80,
   },
   descriptionText: {
-    flex: 1, // Allow text to take up available space
+    flex: 1,
     fontSize: 14,
     color: '#aaa',
-    lineHeight: 20, // Adjust line height for readability
+    lineHeight: 20,
   },
   dateRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  // Modified dateButton to be a plain View, not TouchableOpacity
   dateButton: {
     flex: 1,
     borderWidth: 1,
@@ -497,10 +471,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
-  // Conclude section is removed entirely from this view
-  // concludeSection: { /* ... */ },
-  // concludeButton: { /* ... */ },
-  // concludeButtonText: { /* ... */ },
   deleteSection: {
     paddingHorizontal: 20,
     paddingTop: 0,
@@ -520,7 +490,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ff453a',
   },
-  // Date picker modals styles are no longer needed
   datePickerOverlay: {
     flex: 1,
     justifyContent: 'flex-end',

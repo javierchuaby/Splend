@@ -3,19 +3,21 @@ import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 interface TripMember {
-  id: string; // This corresponds to `uid` in the `users` collection
+  id: string;
   username: string;
   displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 interface Trip {
@@ -25,7 +27,6 @@ interface Trip {
   startDate: Date;
   endDate: Date;
   createdAt: Date;
-  // Added fields from the new Firestore structure for completeness
   tripDescription: string;
   isConcluded: boolean;
   eventIds: string[];
@@ -50,6 +51,9 @@ export default function ConcludedTripMembersScreen() {
             id: user.uid,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         }
       }
@@ -57,7 +61,7 @@ export default function ConcludedTripMembersScreen() {
     fetchCurrentUser();
   }, []);
 
-  // Fetch trip data and resolve members from `users` collection
+  // Fetch trip data and members
   useEffect(() => {
     if (!tripId || !currentUser) return;
 
@@ -67,29 +71,21 @@ export default function ConcludedTripMembersScreen() {
       .onSnapshot(async doc => {
         if (doc.exists()) {
           const data = doc.data();
-          // Ensure it's a concluded trip
-          if (!data!.isConcluded) {
-            Alert.alert('Error', 'This trip is not concluded.');
-            router.back();
-            return;
-          }
-
           const tripMembers = data!.members;
 
           // Fetch user data for each member from the `users` collection
           const resolvedMembers: TripMember[] = await Promise.all(
             tripMembers.map(async (member: { uid: string, username: string, displayName: string }) => {
-              // Note: Using member.uid here as per the new Firestore structure
               const userDoc = await firestore().collection('users').doc(member.uid).get();
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 return {
-                  id: member.uid, // Use uid as the id for TripMember interface
+                  id: member.uid,
                   username: userData?.username,
                   displayName: userData?.displayName,
                 };
               } else {
-                // Fallback to stored data if user document not found (e.g., deleted user)
+                // Fallback to member info in the trip document (might be outdated) if cannot find member in members collection
                 return {
                   id: member.uid,
                   username: member.username,
@@ -101,7 +97,7 @@ export default function ConcludedTripMembersScreen() {
 
           const currentTrip: Trip = {
             id: doc.id,
-            name: data!.tripName, // Use tripName from the new structure
+            name: data!.tripName,
             members: resolvedMembers,
             startDate: data!.startDate.toDate(),
             endDate: data!.endDate.toDate(),
@@ -136,12 +132,10 @@ export default function ConcludedTripMembersScreen() {
       member => member.id !== currentUser.id
     );
 
-    // Sort remaining members alphabetically by display name
     membersWithoutCurrentUser.sort((a, b) =>
       a.displayName.localeCompare(b.displayName)
     );
 
-    // Add current user to the beginning of list
     const currentUserAsMember = trip.members.find(
       member => member.id === currentUser.id
     );
@@ -164,7 +158,6 @@ export default function ConcludedTripMembersScreen() {
         </Text>{' '}
         <Text style={styles.usernameText}>@{item.username}</Text>
       </Text>
-      {/* No remove button in concluded view */}
     </View>
   );
 
@@ -222,7 +215,6 @@ export default function ConcludedTripMembersScreen() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.content}>
-          {/* Removed Add New Member section (search input, search results) */}
 
           <View style={styles.membersSection}>
             <FlatList
@@ -265,24 +257,18 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   placeholder: {
-    width: 50, // To balance the header title position
+    width: 50,
   },
   content: {
     flex: 1,
     padding: 20,
   },
-  // Removed addMemberSection and its related styles
-  // addMemberSection: {
-  //   marginBottom: 24,
-  // },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
     marginBottom: 12,
   },
-  // Removed searchInput, searchResults, searchResultsList, searchResultItem, addButtonText, noResultsText, loadingText
-  // searchInput: {}, etc.
   membersSection: {
     flex: 1,
   },
@@ -312,8 +298,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
   },
-  // Removed removeButton, removeButtonText
-  // removeButton: {}, etc.
   noMembersText: {
     padding: 12,
     fontSize: 14,

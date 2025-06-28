@@ -16,11 +16,12 @@ import {
 
 // Type representing a member in Firestore's trip document (just the UID)
 interface FirestoreTripMemberRef {
-  uid: string; // The user's UID
-  // You might still store these if you want a fallback or to reduce reads,
-  // but the current request implies they are removed or will be ignored by fetch.
-  // username?: string;
-  // displayName?: string;
+  uid: string;
+  username: string;
+  displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 // Type representing a fully hydrated TripMember for UI display
@@ -28,6 +29,9 @@ interface TripMember {
   id: string; // This corresponds to `uid` in the `users` collection
   username: string;
   displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 interface Trip {
@@ -67,6 +71,9 @@ export default function TripMembersScreen() {
             id: user.uid,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         }
       }
@@ -99,8 +106,11 @@ export default function TripMembersScreen() {
               const userData = userDoc.data();
               resolvedMembers.push({
                 id: memberRef.uid,
-                username: userData?.username || 'unknown', // Fallback for safety
-                displayName: userData?.displayName || 'Unknown User', // Fallback
+                username: userData?.username,
+                displayName: userData?.displayName,
+                billIds: userData?.billIds,
+                totalSpent: userData?.totalSpent,
+                totalPaid: userData?.totalPaid,
               });
             } else {
               // Handle case where user document might not exist (e.g., deleted account)
@@ -109,6 +119,9 @@ export default function TripMembersScreen() {
                 id: memberRef.uid,
                 username: 'deleted',
                 displayName: 'Deleted User',
+                billIds: [],
+                totalSpent: 0,
+                totalPaid:0,
               });
             }
           }
@@ -177,6 +190,9 @@ export default function TripMembersScreen() {
             id: doc.id,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         });
 
@@ -196,6 +212,9 @@ export default function TripMembersScreen() {
                 id: doc.id,
                 username: userData.username,
                 displayName: userData.displayName,
+                billIds: userData?.billIds,
+                totalSpent: userData?.totalSpent,
+                totalPaid: userData?.totalPaid,
               });
             }
           });
@@ -226,23 +245,21 @@ export default function TripMembersScreen() {
   const addMember = async (userToAdd: TripMember) => {
     if (!trip) return;
 
-    // Check if user is already a member locally (redundant but good quick check)
-    if (trip.members.some(member => member.id === userToAdd.id)) {
-      Alert.alert('Error', 'User is already a member of this trip');
-      return;
-    }
-
     try {
-      // Update Firestore: Add only the UID to the members array
       await firestore()
         .collection('trips')
         .doc(trip.id)
         .update({
-          // Firestore stores just the UID for members
           members: firestore.FieldValue.arrayUnion({ uid: userToAdd.id }),
+          uid: userToAdd.id,
+          username: userToAdd.username,
+          displayName: userToAdd.displayName,
+          billIds: [],
+          totalSpent: 0,
+          totalPaid: 0,
         });
       setSearchQuery('');
-      setSearchResults([]); // Clear search results after adding
+      setSearchResults([]);
     } catch (error) {
       Alert.alert('Error', 'Failed to add member');
       console.error(error);
@@ -251,12 +268,6 @@ export default function TripMembersScreen() {
 
   const removeMember = async (memberToRemove: TripMember) => {
     if (!trip || !currentUser) return;
-
-    // Prevent removing the last member
-    if (trip.members.length === 1) {
-      Alert.alert('Error', 'Trip must have at least one member.');
-      return;
-    }
 
     // Prevent removing self
     if (memberToRemove.id === currentUser.id) {
@@ -274,13 +285,20 @@ export default function TripMembersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Update Firestore: Remove only the UID from the members array
+              const memberObjectInFirestore = {
+                uid: memberToRemove.id,
+                username: memberToRemove.username,
+                displayName: memberToRemove.displayName,
+                billIds: memberToRemove.billIds || [], // Ensure default if not present
+                totalSpent: memberToRemove.totalSpent || 0, // Ensure default if not present
+                totalPaid: memberToRemove.totalPaid || 0, // Ensure default if not present
+              };
+
               await firestore()
                 .collection('trips')
                 .doc(trip.id)
                 .update({
-                  // Firestore stores just the UID for members
-                  members: firestore.FieldValue.arrayRemove({ uid: memberToRemove.id }),
+                  members: firestore.FieldValue.arrayRemove(memberObjectInFirestore),
                 });
             } catch (error) {
               Alert.alert('Error', 'Failed to remove member');
@@ -292,7 +310,6 @@ export default function TripMembersScreen() {
     );
   };
 
-  // Re-order members for display: Current user first, then others alphabetically
   const orderedMembers = useMemo(() => {
     if (!trip || !currentUser) {
       return [];
@@ -302,12 +319,10 @@ export default function TripMembersScreen() {
       member => member.id !== currentUser.id
     );
 
-    // Sort remaining members alphabetically by display name
     membersWithoutCurrentUser.sort((a, b) =>
       a.displayName.localeCompare(b.displayName)
     );
 
-    // Add current user to the beginning of list
     const currentUserAsMember = trip.members.find(
       member => member.id === currentUser.id
     );
@@ -315,8 +330,6 @@ export default function TripMembersScreen() {
     if (currentUserAsMember) {
       return [currentUserAsMember, ...membersWithoutCurrentUser];
     } else {
-      // Fallback: If for some reason current user isn't in trip.members (shouldn't happen
-      // with correct data), just return the rest.
       return membersWithoutCurrentUser;
     }
   }, [trip, currentUser]);
@@ -332,7 +345,7 @@ export default function TripMembersScreen() {
         </Text>{' '}
         <Text style={styles.usernameText}>@{item.username}</Text>
       </Text>
-      {currentUser?.id !== item.id && ( // Disable remove button for oneself
+      {currentUser?.id !== item.id && (
         <TouchableOpacity
           style={styles.removeButton}
           onPress={() => removeMember(item)}
@@ -356,7 +369,7 @@ export default function TripMembersScreen() {
     </TouchableOpacity>
   );
 
-  // Unified loading/error handling for the main trip data
+  // Loading...
   if (isLoadingTrip) {
     return (
       <>
@@ -377,7 +390,7 @@ export default function TripMembersScreen() {
     );
   }
 
-  // Once loading is complete, check for access or if trip exists
+  // Check for access (in case somebody kicked you out of the trip)
   if (!trip || !hasAccess) {
     return (
       <>

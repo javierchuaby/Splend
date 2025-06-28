@@ -17,9 +17,12 @@ import {
 
 // Types
 interface TripMember {
-  id: string; // User's UID
+  id: string;
   username: string;
   displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 interface Trip {
@@ -65,6 +68,9 @@ export default function TripViewScreen() {
             id: user.uid,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         }
       }
@@ -88,21 +94,21 @@ export default function TripViewScreen() {
             const data = doc.data();
             const currentTrip: Trip = {
               id: doc.id,
-              name: data!.tripName, // Use 'tripName' from Firestore
-              members: data!.members.map((member: any) => ({ // Map members to TripMember interface
-                id: member.uid, // Use 'uid' for member ID
+              name: data!.tripName,
+              members: data!.members.map((member: any) => ({
+                id: member.uid,
                 username: member.username,
                 displayName: member.displayName,
-                billIds: member.billIds || [], // Assuming these might exist for existing members
+                billIds: member.billIds || [],
                 totalSpent: member.totalSpent || 0,
                 totalPaid: member.totalPaid || 0,
               })),
               startDate: data!.startDate.toDate(),
               endDate: data!.endDate.toDate(),
               createdAt: data!.createdAt?.toDate() ?? new Date(),
-              tripDescription: data!.tripDescription || '', // Include new field
-              isConcluded: data!.isConcluded || false, // Include new field
-              eventIds: data!.eventIds || [], // Include new field
+              tripDescription: data!.tripDescription || '',
+              isConcluded: data!.isConcluded || false,
+              eventIds: data!.eventIds || [],
             };
             setTrip(currentTrip);
 

@@ -23,6 +23,9 @@ interface TripMember {
   id: string;
   username: string;
   displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
 }
 
 interface Trip {
@@ -76,6 +79,9 @@ export default function HomeScreen() {
             id: user.uid,
             username: userData?.username,
             displayName: userData?.displayName,
+            billIds: userData?.billIds,
+            totalSpent: userData?.totalSpent,
+            totalPaid: userData?.totalPaid,
           });
         }
       }
@@ -145,6 +151,9 @@ export default function HomeScreen() {
           id: doc.id,
           username: userData.username,
           displayName: userData.displayName,
+          billIds: userData?.billIds,
+          totalSpent: userData?.totalSpent,
+          totalPaid: userData?.totalPaid,
         });
       });
 
@@ -163,6 +172,9 @@ export default function HomeScreen() {
               id: doc.id,
               username: userData.username,
               displayName: userData.displayName,
+              billIds: userData?.billIds,
+              totalSpent: userData?.totalSpent,
+              totalPaid: userData?.totalPaid,
             });
           }
         });

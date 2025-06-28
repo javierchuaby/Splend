@@ -2,13 +2,13 @@ import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function ConcludedTripDescriptionScreen() {
@@ -32,12 +32,11 @@ export default function ConcludedTripDescriptionScreen() {
           const data = doc.data();
           // Check if the trip is actually concluded
           if (!data?.isConcluded) {
-            Alert.alert('Redirect', 'This trip is not concluded. Redirecting.');
             router.replace({
-              pathname: '/trip-description', // Redirect to active description view
+              pathname: '/trip-description',
               params: { tripId: tripId },
             });
-            return; // Prevent rendering of this component
+            return;
           }
           const currentDescription = data?.tripDescription || '';
           setDescription(currentDescription);
@@ -57,12 +56,10 @@ export default function ConcludedTripDescriptionScreen() {
     );
 
     return unsubscribe;
-  }, [tripId]); // Added router to dependency array for replace
-
-  // Removed handleSave, handleCancel, handleEditPress as editing is disabled
+  }, [tripId]);
 
   const handleBackPress = () => {
-    router.back(); // Simply go back
+    router.back();
   };
 
   if (isLoading) {
@@ -132,17 +129,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0a84ff',
   },
-  // Removed cancel, edit, save button styles
   placeholder: {
-    width: 50, // To balance the header title position
+    width: 50,
   },
   content: {
     flex: 1,
     padding: 20,
   },
-  // Removed textArea styles as TextInput is not used
   textBoxScrollView: {
-    flex: 1, // Allow scroll view to expand
+    flex: 1,
     backgroundColor: '#1e1e1e',
     borderRadius: 8,
     borderWidth: 1,

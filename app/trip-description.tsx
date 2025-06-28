@@ -2,14 +2,14 @@ import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function TripDescriptionScreen() {
@@ -18,7 +18,7 @@ export default function TripDescriptionScreen() {
   const [description, setDescription] = useState('');
   const [originalDescription, setOriginalDescription] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false); // New state for editing mode
+  const [isEditing, setIsEditing] = useState(false);
 
   // Fetch trip description
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function TripDescriptionScreen() {
           const data = doc.data();
           const currentDescription = data?.tripDescription || '';
           setDescription(currentDescription);
-          setOriginalDescription(currentDescription); // Save for comparison
+          setOriginalDescription(currentDescription);
         } else {
           setDescription('');
           setOriginalDescription('');
@@ -58,18 +58,18 @@ export default function TripDescriptionScreen() {
   const handleSave = async () => {
     if (!tripId) return;
 
-    // Only save if the description has changed
+    // Only save if the description has changed (I hope this reduces writes!)
     if (description.trim() === originalDescription.trim()) {
-      setIsEditing(false); // Exit editing mode
-      return; // No changes, just exit editing mode
+      setIsEditing(false);
+      return;
     }
 
     try {
       await firestore().collection('trips').doc(tripId as string).update({
         tripDescription: description.trim(),
       });
-      setOriginalDescription(description.trim()); // Update original
-      setIsEditing(false); // Exit editing mode
+      setOriginalDescription(description.trim());
+      setIsEditing(false);
     } catch (error) {
       Alert.alert('Error', 'Failed to save description');
       console.error('Error saving trip description:', error);
@@ -77,16 +77,16 @@ export default function TripDescriptionScreen() {
   };
 
   const handleCancel = () => {
-    setDescription(originalDescription); // Revert to original description
-    setIsEditing(false); // Exit editing mode
+    setDescription(originalDescription);
+    setIsEditing(false);
   };
 
   const handleEditPress = () => {
-    setIsEditing(true); // Enter editing mode
+    setIsEditing(true);
   };
 
   const handleBackPress = () => {
-    router.back(); // Simply go back
+    router.back();
   };
 
   if (isLoading) {
@@ -156,7 +156,7 @@ export default function TripDescriptionScreen() {
               placeholderTextColor="#777"
               keyboardAppearance="dark"
               multiline={true}
-              autoFocus={true} // Focus on input when entering edit mode
+              autoFocus={true}
             />
           ) : (
             <ScrollView style={styles.textBoxScrollView}>
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     fontSize: 16,
-    color: '#ff453a', // Red color for cancel
+    color: '#ff453a',
   },
   editButton: {
     fontSize: 16,
@@ -209,10 +209,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButtonDisabled: {
-    color: '#555', // Grey out when disabled
+    color: '#555',
   },
   placeholder: {
-    width: 50, // To balance the header title position (not needed now with conditional buttons)
+    width: 50,
   },
   content: {
     flex: 1,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   textBoxScrollView: {
-    flex: 1, // Allow scroll view to expand
+    flex: 1,
     backgroundColor: '#1e1e1e',
     borderRadius: 8,
     borderWidth: 1,
