@@ -250,13 +250,14 @@ export default function TripMembersScreen() {
         .collection('trips')
         .doc(trip.id)
         .update({
-          members: firestore.FieldValue.arrayUnion({ uid: userToAdd.id }),
-          uid: userToAdd.id,
-          username: userToAdd.username,
-          displayName: userToAdd.displayName,
-          billIds: [],
-          totalSpent: 0,
-          totalPaid: 0,
+          members: firestore.FieldValue.arrayUnion({ 
+            uid: userToAdd.id,
+            username: userToAdd.username,
+            displayName: userToAdd.displayName,
+            billIds: [],
+            totalSpent: 0,
+            totalPaid: 0, 
+          }),
         });
       setSearchQuery('');
       setSearchResults([]);
