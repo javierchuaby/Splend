@@ -200,13 +200,12 @@ export default function TripMembersScreen() {
         if (foundUsers.length === 0) {
           const displayNameSnapshot = await usersRef
             .orderBy('displayName')
-            .startAt(query.charAt(0).toUpperCase() + query.slice(1)) // Case for first letter
-            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff') // Case for first letter
+            .startAt(query.charAt(0).toUpperCase() + query.slice(1))
+            .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
             .get();
 
           displayNameSnapshot.forEach(doc => {
             const userData = doc.data();
-            // Refine search locally if needed (Firestore `contains` is limited)
             if (userData.displayName.toLowerCase().includes(query)) {
               foundUsers.push({
                 id: doc.id,
@@ -220,7 +219,6 @@ export default function TripMembersScreen() {
           });
         }
 
-        // Filter out already trip members (using their UIDs)
         const currentTripMemberUids = trip?.members.map(m => m.id) || [];
         const uniqueFoundUsers = foundUsers.filter(
           user => !currentTripMemberUids.includes(user.id)
@@ -240,7 +238,7 @@ export default function TripMembersScreen() {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, trip?.members]); // Depend on trip.members to re-filter if members change
+  }, [searchQuery, trip?.members]);
 
   const addMember = async (userToAdd: TripMember) => {
     if (!trip) return;
@@ -290,9 +288,9 @@ export default function TripMembersScreen() {
                 uid: memberToRemove.id,
                 username: memberToRemove.username,
                 displayName: memberToRemove.displayName,
-                billIds: memberToRemove.billIds || [], // Ensure default if not present
-                totalSpent: memberToRemove.totalSpent || 0, // Ensure default if not present
-                totalPaid: memberToRemove.totalPaid || 0, // Ensure default if not present
+                billIds: memberToRemove.billIds,
+                totalSpent: memberToRemove.totalSpent,
+                totalPaid: memberToRemove.totalPaid,
               };
 
               await firestore()

@@ -1,17 +1,17 @@
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 interface TripMember {
@@ -23,16 +23,14 @@ interface TripMember {
   totalPaid: number;
 }
 
-interface Trip {
+interface Event {
   id: string;
   name: string;
-  members: TripMember[];
-  startDate: Date;
-  endDate: Date;
-  createdAt: Date;
-  tripDescription: string;
-  isConcluded: boolean;
-  eventIds: string[];
+  location: FirebaseFirestoreTypes.GeoPoint;
+  startDateTime: Date;
+  endDateTime: Date;
+  memberIds: string[];
+  billIds: string[];
 }
 
 interface MonthOption {
@@ -40,10 +38,10 @@ interface MonthOption {
   value: number;
 }
 
-export default function TripViewScreen() {
+export default function EventViewScreen() {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams();
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const { eventId, tripId } = useLocalSearchParams();
+  const [event, setEvent] = useState<Event | null>(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
@@ -51,8 +49,7 @@ export default function TripViewScreen() {
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isManageTripModalVisible, setIsManageTripModalVisible] =
-    useState(false);
+  const [eventMembers, setEventMembers] = useState<TripMember[]>([]);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -76,91 +73,110 @@ export default function TripViewScreen() {
   }, []);
 
   useEffect(() => {
-    if (!tripId || !currentUser) {
+    if (!eventId || !currentUser) {
       setIsLoading(true);
       return;
     }
 
     const unsubscribe = firestore()
-      .collection('trips')
-      .doc(tripId as string)
+      .collection('events')
+      .doc(eventId as string)
       .onSnapshot(
-        doc => {
+        async doc => {
           if (doc.exists()) {
             const data = doc.data();
-            const currentTrip: Trip = {
+            const currentEvent: Event = {
               id: doc.id,
-              name: data!.tripName,
-              members: data!.members.map((member: any) => ({
-                id: member.uid,
-                username: member.username,
-                displayName: member.displayName,
-                billIds: member.billIds || [],
-                totalSpent: member.totalSpent || 0,
-                totalPaid: member.totalPaid || 0,
-              })),
-              startDate: data!.startDate.toDate(),
-              endDate: data!.endDate.toDate(),
-              createdAt: data!.createdAt?.toDate() ?? new Date(),
-              tripDescription: data!.tripDescription || '',
-              isConcluded: data!.isConcluded || false,
-              eventIds: data!.eventIds || [],
+              name: data!.eventName,
+              location: data!.eventLocation,
+              startDateTime: data!.startDateTime.toDate(),
+              endDateTime: data!.endDateTime.toDate(),
+              memberIds: data!.memberIds || [],
+              billIds: data!.billIds || [],
             };
-            setTrip(currentTrip);
+            setEvent(currentEvent);
 
-            const isMember = currentTrip.members.some(
-              member => member.id === currentUser.id
+            const isMember = currentEvent.memberIds.some(
+              memberId => memberId === currentUser.id
             );
             setHasAccess(isMember);
+
+            const membersData: TripMember[] = [];
+            if (currentEvent.memberIds.length > 0) {
+              const membersSnapshot = await firestore()
+                .collection('users')
+                .where(firestore.FieldPath.documentId(), 'in', currentEvent.memberIds)
+                .get();
+              membersSnapshot.forEach(memberDoc => {
+                const userData = memberDoc.data();
+                membersData.push({
+                  id: memberDoc.id,
+                  username: userData.username,
+                  displayName: userData.displayName,
+                  billIds: userData.billIds || [],
+                  totalSpent: userData.totalSpent || 0,
+                  totalPaid: userData.totalPaid || 0,
+                });
+              });
+            }
+            setEventMembers(membersData);
             setIsLoading(false);
           } else {
-            setTrip(null);
+            setEvent(null);
             setHasAccess(false);
             setIsLoading(false);
           }
         },
         error => {
-          console.error('Error fetching trip:', error);
-          setTrip(null);
+          console.error('Error fetching event:', error);
+          setEvent(null);
           setHasAccess(false);
           setIsLoading(false);
         }
       );
     return unsubscribe;
-  }, [tripId, currentUser]);
+  }, [eventId, currentUser]);
 
-  const saveTrip = async (updatedFields: Partial<Trip>) => {
-    if (!trip) return;
+  const saveEvent = async (updatedFields: Partial<Event>) => {
+    if (!event) return;
 
     const firestoreUpdate: { [key: string]: any } = {};
-    if (updatedFields.startDate) {
-      firestoreUpdate.startDate = firestore.Timestamp.fromDate(
-        updatedFields.startDate
+    if (updatedFields.startDateTime) {
+      firestoreUpdate.startDateTime = firestore.Timestamp.fromDate(
+        updatedFields.startDateTime
       );
     }
-    if (updatedFields.endDate) {
-      firestoreUpdate.endDate = firestore.Timestamp.fromDate(
-        updatedFields.endDate
+    if (updatedFields.endDateTime) {
+      firestoreUpdate.endDateTime = firestore.Timestamp.fromDate(
+        updatedFields.endDateTime
       );
+    }
+    if (updatedFields.name) {
+      firestoreUpdate.eventName = updatedFields.name;
+    }
+    if (updatedFields.location) {
+      firestoreUpdate.eventLocation = updatedFields.location;
+    }
+    if (updatedFields.memberIds) {
+      firestoreUpdate.memberIds = updatedFields.memberIds;
     }
 
     try {
       await firestore()
-        .collection('trips')
-        .doc(trip.id)
+        .collection('events')
+        .doc(event.id)
         .update(firestoreUpdate);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update trip');
+      Alert.alert('Error', 'Failed to update event');
       console.error(error);
     }
   };
 
-  const deleteTrip = async () => {
-    if (!trip) return;
-    setIsManageTripModalVisible(false);
+  const deleteEvent = async () => {
+    if (!event || !tripId) return;
     Alert.alert(
-      'Delete Trip',
-      `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
+      'Delete Event',
+      `Are you sure you want to delete "${event.name}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -168,10 +184,16 @@ export default function TripViewScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await firestore().collection('trips').doc(trip.id).delete();
+              await firestore().collection('events').doc(event.id).delete();
+              await firestore()
+                .collection('trips')
+                .doc(tripId as string)
+                .update({
+                  eventIds: firestore.FieldValue.arrayRemove(event.id),
+                });
               router.back();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete trip');
+              Alert.alert('Error', 'Failed to delete event');
               console.error(error);
             }
           },
@@ -180,39 +202,13 @@ export default function TripViewScreen() {
     );
   };
 
-  const concludeTrip = async () => {
-    if (!trip) return;
-    setIsManageTripModalVisible(false);
-    Alert.alert(
-      'Conclude Trip',
-      `Are you sure you want to conclude "${trip.name}"? This will archive the trip and remove it from active trips.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Conclude',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await firestore().collection('trips').doc(trip.id).update({
-                isConcluded: true,
-              });
-
-              router.back();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to conclude trip, please try again');
-              console.error(error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const formatDate = (date: Date) => {
+  const formatDateTime = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -228,22 +224,8 @@ export default function TripViewScreen() {
 
   const navigateToMembers = () => {
     router.push({
-      pathname: '/trip-members',
-      params: { tripId: trip?.id },
-    });
-  };
-
-  const navigateToDescription = () => {
-    router.push({
-      pathname: '/trip-description',
-      params: { tripId: trip?.id },
-    });
-  };
-
-  const navigateToEvents = () => {
-    router.push({
-      pathname: '/events',
-      params: { tripId: trip?.id },
+      pathname: '/event-members',
+      params: { eventId: event?.id, tripId: tripId },
     });
   };
 
@@ -285,22 +267,22 @@ export default function TripViewScreen() {
   const { years, months, days } = generateDateOptions();
 
   const handleStartDateDone = async () => {
-    if (!trip) return;
-    if (tempStartDate > trip.endDate) {
+    if (!event) return;
+    if (tempStartDate > event.endDateTime) {
       Alert.alert('Error', 'Start date cannot be after the end date');
       return;
     }
-    await saveTrip({ startDate: tempStartDate });
+    await saveEvent({ startDateTime: tempStartDate });
     setShowStartDatePicker(false);
   };
 
   const handleEndDateDone = async () => {
-    if (!trip) return;
-    if (tempEndDate < trip.startDate) {
+    if (!event) return;
+    if (tempEndDate < event.startDateTime) {
       Alert.alert('Error', 'End date cannot be before the start date');
       return;
     }
-    await saveTrip({ endDate: tempEndDate });
+    await saveEvent({ endDateTime: tempEndDate });
     setShowEndDatePicker(false);
   };
 
@@ -311,40 +293,30 @@ export default function TripViewScreen() {
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
-              <Text style={styles.backButton}>← All Trips</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setIsManageTripModalVisible(true)}
-            >
-              <Text style={styles.manageTripButtonText}>Manage</Text>
+              <Text style={styles.backButton}>← Events</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Loading trip...</Text>
+            <Text style={styles.errorText}>Loading event...</Text>
           </View>
         </SafeAreaView>
       </>
     );
   }
 
-  if (!trip || !hasAccess) {
+  if (!event || !hasAccess) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
-              <Text style={styles.backButton}>← All Trips</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setIsManageTripModalVisible(true)}
-            >
-              <Text style={styles.manageTripButtonText}>Manage</Text>
+              <Text style={styles.backButton}>← Events</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>
-              Trip not found or you don't have access.
+              Event not found or you don't have access.
             </Text>
           </View>
         </SafeAreaView>
@@ -358,31 +330,18 @@ export default function TripViewScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backButton}>← All Trips</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setIsManageTripModalVisible(true)}>
-            <Text style={styles.manageTripButtonText}>Manage</Text>
+            <Text style={styles.backButton}>← Events</Text>
           </TouchableOpacity>
         </View>
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
-            <Text style={styles.tripTitle}>{trip.name}</Text>
+            <Text style={styles.eventTitle}>{event.name}</Text>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <TouchableOpacity
-                style={styles.descriptionCard}
-                onPress={navigateToDescription}
-              >
-                <Text
-                  style={styles.descriptionText}
-                  numberOfLines={4}
-                  ellipsizeMode="tail"
-                >
-                  {trip.tripDescription || 'No description provided. Tap to add one.'}
-                </Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
+              <Text style={styles.sectionTitle}>Location</Text>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoText}>{event.location.latitude}, {event.location.longitude}</Text>
+              </View>
             </View>
 
             <View style={styles.section}>
@@ -391,29 +350,29 @@ export default function TripViewScreen() {
                 <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => {
-                    setTempStartDate(new Date(trip.startDate));
+                    setTempStartDate(new Date(event.startDateTime));
                     setShowStartDatePicker(true);
                   }}
                 >
                   <Text style={styles.dateButtonText}>
-                    Start: {formatDate(trip.startDate)}
+                    Start: {formatDateTime(event.startDateTime)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => {
-                    setTempEndDate(new Date(trip.endDate));
+                    setTempEndDate(new Date(event.endDateTime));
                     setShowEndDatePicker(true);
                   }}
                 >
                   <Text style={styles.dateButtonText}>
-                    End: {formatDate(trip.endDate)}
+                    End: {formatDateTime(event.endDateTime)}
                   </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.durationSubtextContainer}>
                 <Text style={styles.durationSubtext}>
-                  {calculateDuration(trip.startDate, trip.endDate)}
+                  {calculateDuration(event.startDateTime, event.endDateTime)}
                 </Text>
               </View>
             </View>
@@ -424,19 +383,19 @@ export default function TripViewScreen() {
                 onPress={navigateToMembers}
               >
                 <Text style={styles.membersCount}>
-                  {trip.members.length} member
-                  {trip.members.length !== 1 ? 's' : ''}
+                  {eventMembers.length} member
+                  {eventMembers.length !== 1 ? 's' : ''}
                 </Text>
                 <View style={styles.membersList}>
-                  {trip.members.slice(0, 2).map((member, index) => (
+                  {eventMembers.slice(0, 2).map((member, index) => (
                     <Text key={member.id} style={styles.memberName}>
                       {member.displayName}
-                      {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
+                      {index < Math.min(eventMembers.length - 1, 2) ? ', ' : ''}
                     </Text>
                   ))}
-                  {trip.members.length > 2 && (
+                  {eventMembers.length > 2 && (
                     <Text style={styles.memberName}>
-                      +{trip.members.length - 2} more
+                      +{eventMembers.length - 2} more
                     </Text>
                   )}
                 </View>
@@ -446,48 +405,11 @@ export default function TripViewScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.eventsSection}>
-          <TouchableOpacity style={styles.eventsButton} onPress={navigateToEvents}>
-            <Text style={styles.eventsButtonText}>View Events</Text>
+        <View style={styles.deleteSection}>
+          <TouchableOpacity style={styles.deleteButton} onPress={deleteEvent}>
+            <Text style={styles.deleteButtonText}>Delete Event</Text>
           </TouchableOpacity>
         </View>
-
-        <Modal
-          visible={isManageTripModalVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setIsManageTripModalVisible(false)}
-        >
-          <View style={styles.manageTripOverlay}>
-            <View style={styles.manageTripContainer}>
-              <View style={styles.manageTripHeader}>
-                <TouchableOpacity
-                  onPress={() => setIsManageTripModalVisible(false)}
-                >
-                  <Text style={styles.manageTripCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.manageTripTitle}>Manage Trip</Text>
-                <View style={styles.placeholder} />
-              </View>
-              <View style={styles.manageTripButtons}>
-                {!trip.isConcluded && (
-                  <TouchableOpacity
-                    style={styles.concludeButton}
-                    onPress={concludeTrip}
-                  >
-                    <Text style={styles.concludeButtonText}>Conclude Trip</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={deleteTrip}
-                >
-                  <Text style={styles.deleteButtonText}>Delete Trip</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         <Modal
           visible={showStartDatePicker}
@@ -698,7 +620,7 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
-  tripTitle: {
+  eventTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
@@ -711,13 +633,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 12,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  descriptionCard: {
+  infoCard: {
     backgroundColor: '#1e1e1e',
     padding: 16,
     borderRadius: 12,
@@ -729,9 +645,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 80,
   },
-  descriptionText: {
+  infoText: {
     flex: 1,
     fontSize: 14,
     color: '#aaa',
@@ -803,44 +718,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
-  eventsSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 0,
-  },
-  eventsButton: {
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  eventsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  concludeSection: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-  },
-  concludeButton: {
-    backgroundColor: '#34C759',
-    borderWidth: 1,
-    borderColor: '#4d2c2c',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  concludeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
   deleteSection: {
     paddingHorizontal: 20,
     paddingTop: 0,
@@ -902,44 +779,5 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#fff',
     backgroundColor: '#1e1e1e',
-  },
-  manageTripButtonText: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
-  },
-  manageTripOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  manageTripContainer: {
-    backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-    paddingBottom: 20,
-  },
-  manageTripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  manageTripCancel: {
-    fontSize: 16,
-    color: '#0a84ff',
-  },
-  manageTripTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  manageTripButtons: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    gap: 12,
   },
 });
