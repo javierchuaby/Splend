@@ -67,7 +67,6 @@ export default function HomeScreen() {
     'active'
   );
 
-  // Fetch current user to add to trip (would be stupid if user had to add themselves)
   useEffect(() => {
     const fetchCurrentUser = async () => {
       const user = auth().currentUser;
@@ -89,7 +88,6 @@ export default function HomeScreen() {
     fetchCurrentUser();
   }, []);
 
-  // Eager fetching of trips for live-updating
   useEffect(() => {
     if (!currentUser) return;
 
@@ -117,7 +115,6 @@ export default function HomeScreen() {
             };
           })
           .filter((trip: Trip) =>
-            // Filter by current user membership AND the isConcluded status
             trip.members.some((member: TripMember) => member.id === currentUser.id) &&
             (tripFilter === 'active' ? !trip.isConcluded : trip.isConcluded)
           );
@@ -125,9 +122,8 @@ export default function HomeScreen() {
         setTrips(tripsData);
       });
     return unsubscribe;
-  }, [currentUser, tripFilter]); // Re-run when currentUser or tripFilter changes.
+  }, [currentUser, tripFilter]);
 
-  // Search for users
   useEffect(() => {
     const searchUsers = async () => {
       if (!memberSearchQuery.trim()) {
@@ -140,7 +136,6 @@ export default function HomeScreen() {
       const usersRef = firestore().collection('users');
       let foundUsers: TripMember[] = [];
 
-      // Search by exact username first
       const usernameSnapshot = await usersRef
         .where('username', '==', query)
         .limit(1)
@@ -157,7 +152,6 @@ export default function HomeScreen() {
         });
       });
 
-      // If username not found, search by displayName
       if (foundUsers.length === 0) {
         const displayNameSnapshot = await usersRef
           .orderBy('displayName')
@@ -180,7 +174,6 @@ export default function HomeScreen() {
         });
       }
 
-      // Filter out already selected members and the current user
       const uniqueFoundUsers = foundUsers.filter(
         user =>
           !selectedMembers.some(member => member.id === user.id) &&
@@ -198,7 +191,6 @@ export default function HomeScreen() {
     return () => clearTimeout(handler);
   }, [memberSearchQuery, selectedMembers, currentUser]);
 
-  // Create new trip in Firestore
   const createTrip = async () => {
     if (!newTripName.trim()) {
       Alert.alert('We\'re going on a what?', 'Please enter a trip name.');
@@ -235,10 +227,9 @@ export default function HomeScreen() {
         members: allMembers,
         eventIds: [],
         createdAt: firestore.FieldValue.serverTimestamp(),
-        isConcluded: false, // New trips are by default not concluded
+        isConcluded: false,
       });
 
-      // Reset form
       setNewTripName('');
       setNewTripDescription('');
       setSelectedMembers([]);
@@ -247,7 +238,6 @@ export default function HomeScreen() {
       setEndDate(new Date());
       setIsModalVisible(false);
 
-      // Navigate to the newly-created trip
       router.push({
         pathname: '/trip-view',
         params: { tripId: docRef.id },
@@ -258,7 +248,6 @@ export default function HomeScreen() {
     }
   };
 
-  // Add member to selected list
   const addMember = (user: TripMember) => {
     if (!selectedMembers.some(member => member.id === user.id)) {
       setSelectedMembers([...selectedMembers, user]);
@@ -267,12 +256,10 @@ export default function HomeScreen() {
     }
   };
 
-  // Remove member from selected list
   const removeMember = (userId: string) => {
     setSelectedMembers(selectedMembers.filter(member => member.id !== userId));
   };
 
-  // Format date for display
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -281,7 +268,6 @@ export default function HomeScreen() {
     });
   };
 
-  // Generate date options for picker
   const generateDateOptions = (): {
     years: number[];
     months: MonthOption[];
@@ -292,12 +278,10 @@ export default function HomeScreen() {
     const months: MonthOption[] = [];
     const days: number[] = [];
 
-    // Years
     for (let i = 0; i < 6; i++) {
       years.push(today.getFullYear() + i);
     }
 
-    // Months
     const monthNames = [
       'January',
       'February',
@@ -316,7 +300,6 @@ export default function HomeScreen() {
       months.push({ label: month, value: index });
     });
 
-    // Days
     for (let i = 1; i <= 31; i++) {
       days.push(i);
     }
@@ -326,18 +309,16 @@ export default function HomeScreen() {
 
   const { years, months, days } = generateDateOptions();
 
-  // Date picker handlers
   const handleStartDateDone = () => {
-    setStartDate(tempStartDate);
     setShowStartDatePicker(false);
+    setStartDate(tempStartDate);
   };
 
   const handleEndDateDone = () => {
-    setEndDate(tempEndDate);
     setShowEndDatePicker(false);
+    setEndDate(tempEndDate);
   };
 
-  // Navigate to Trip View
   const navigateToTrip = (trip: Trip) => {
     router.push({
       pathname: trip.isConcluded ? `/concluded-trip-view` : `/trip-view`,
@@ -345,7 +326,6 @@ export default function HomeScreen() {
     });
   };
 
-  // Render Trip
   const renderTripItem = ({ item }: { item: Trip }) => (
     <TouchableOpacity
       style={styles.tripCard}
@@ -376,7 +356,6 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1e1e1e" barStyle="light-content" />
 
-      {/* My Trips header with dropdown */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -422,7 +401,7 @@ export default function HomeScreen() {
           onPress={() => {
             setIsModalVisible(true);
             if (currentUser) {
-              setSelectedMembers([currentUser]); // Pre-select current user
+              setSelectedMembers([currentUser]);
             }
           }}
         >
@@ -449,7 +428,6 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* New Trip creation modal (pop up thingy from bottom) */}
       <Modal
         visible={isModalVisible}
         animationType="slide"
@@ -467,7 +445,6 @@ export default function HomeScreen() {
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {/* Trip Name */}
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Trip Name</Text>
               <TextInput
@@ -480,7 +457,6 @@ export default function HomeScreen() {
               />
             </View>
 
-            {/* Trip Description */}
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Trip Description (Optional)</Text>
               <TextInput
@@ -490,12 +466,11 @@ export default function HomeScreen() {
                 placeholder="Describe your trip..."
                 placeholderTextColor="#777"
                 keyboardAppearance="dark"
-                multiline={true} // Allow multiple lines
-                numberOfLines={4} // Hint for initial height
+                multiline={true}
+                numberOfLines={4}
               />
             </View>
 
-            {/* Date Selection */}
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Dates</Text>
               <View style={styles.dateRow}>
@@ -524,7 +499,6 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Member Selection */}
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Add Members</Text>
               <TextInput
@@ -536,7 +510,6 @@ export default function HomeScreen() {
                 keyboardAppearance="dark"
               />
 
-              {/* Member Search Results */}
               {memberSearchQuery.length > 0 && (
                 <View style={styles.searchResults}>
                   {isLoadingUsers ? (
@@ -564,7 +537,6 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Selected Members */}
               {selectedMembers.length > 0 && (
                 <View style={styles.selectedMembers}>
                   <Text style={styles.selectedMembersTitle}>
@@ -583,7 +555,7 @@ export default function HomeScreen() {
                           @{member.username}
                         </Text>
                       </Text>
-                      {currentUser?.id !== member.id && ( // Prevent removing self
+                      {currentUser?.id !== member.id && (
                         <TouchableOpacity
                           onPress={() => removeMember(member.id)}
                         >
@@ -597,153 +569,173 @@ export default function HomeScreen() {
             </View>
           </ScrollView>
 
-          {/* Start Date Picker */}
-          {showStartDatePicker && (
-            <View style={styles.datePickerContainer}>
-              <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                  <Text style={styles.datePickerCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.datePickerTitle}>Select Start Date</Text>
-                <TouchableOpacity onPress={handleStartDateDone}>
-                  <Text style={styles.datePickerDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.pickerRow}>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getFullYear()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setFullYear(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
-                  ))}
-                </Picker>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getMonth()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setMonth(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
-                  ))}
-                </Picker>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getDate()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setDate(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          )}
+          {/* Start Date Picker Modal */}
+          <Modal
+            visible={showStartDatePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowStartDatePicker(false)}
+          >
+            <View style={styles.datePickerOverlay}>
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                    <Text style={styles.datePickerCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerTitle}>Select Start Date</Text>
+                  <TouchableOpacity onPress={handleStartDateDone}>
+                    <Text style={styles.datePickerDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
 
-          {/* End Date Picker */}
-          {showEndDatePicker && (
-            <View style={styles.datePickerContainer}>
-              <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                  <Text style={styles.datePickerCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.datePickerTitle}>Select End Date</Text>
-                <TouchableOpacity onPress={handleEndDateDone}>
-                  <Text style={styles.datePickerDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.pickerRow}>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getFullYear()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setFullYear(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
-                  ))}
-                </Picker>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getMonth()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setMonth(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
-                  ))}
-                </Picker>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getDate()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setDate(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
-                  ))}
-                </Picker>
+                <View style={styles.pickerRow}>
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempStartDate.getFullYear()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempStartDate);
+                      newDate.setFullYear(value);
+                      setTempStartDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {years.map(year => (
+                      <Picker.Item
+                        key={year}
+                        label={year.toString()}
+                        value={year}
+                      />
+                    ))}
+                  </Picker>
+
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempStartDate.getMonth()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempStartDate);
+                      newDate.setMonth(value);
+                      setTempStartDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {months.map(month => (
+                      <Picker.Item
+                        key={month.value}
+                        label={month.label}
+                        value={month.value}
+                      />
+                    ))}
+                  </Picker>
+
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempStartDate.getDate()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempStartDate);
+                      newDate.setDate(value);
+                      setTempStartDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {days.map(day => (
+                      <Picker.Item
+                        key={day}
+                        label={day.toString()}
+                        value={day}
+                      />
+                    ))}
+                  </Picker>
+                </View>
               </View>
             </View>
-          )}
+          </Modal>
+
+          {/* End Date Picker Modal */}
+          <Modal
+            visible={showEndDatePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowEndDatePicker(false)}
+          >
+            <View style={styles.datePickerOverlay}>
+              <View style={styles.datePickerContainer}>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
+                    <Text style={styles.datePickerCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerTitle}>Select End Date</Text>
+                  <TouchableOpacity onPress={handleEndDateDone}>
+                    <Text style={styles.datePickerDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.pickerRow}>
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempEndDate.getFullYear()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempEndDate);
+                      newDate.setFullYear(value);
+                      setTempEndDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {years.map(year => (
+                      <Picker.Item
+                        key={year}
+                        label={year.toString()}
+                        value={year}
+                      />
+                    ))}
+                  </Picker>
+
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempEndDate.getMonth()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempEndDate);
+                      newDate.setMonth(value);
+                      setTempEndDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {months.map(month => (
+                      <Picker.Item
+                        key={month.value}
+                        label={month.label}
+                        value={month.value}
+                      />
+                    ))}
+                  </Picker>
+
+                  <Picker
+                    style={styles.picker}
+                    selectedValue={tempEndDate.getDate()}
+                    onValueChange={value => {
+                      const newDate = new Date(tempEndDate);
+                      newDate.setDate(value);
+                      setTempEndDate(newDate);
+                    }}
+                    dropdownIconColor="#fff"
+                    itemStyle={{ color: '#fff' }}
+                  >
+                    {days.map(day => (
+                      <Picker.Item
+                        key={day}
+                        label={day.toString()}
+                        value={day}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -775,10 +767,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1e1e',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
-    zIndex: 10, // Ensure header is above FlatList content
+    zIndex: 10,
   },
   headerLeft: {
-    position: 'relative', // For positioning the dropdown menu
+    position: 'relative',
   },
   titleButton: {
     flexDirection: 'row',
@@ -794,23 +786,23 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: '100%', // Position below the button
+    top: '100%',
     left: 0,
-    backgroundColor: '#2c3e50', // Darker background for dropdown
+    backgroundColor: '#2c3e50',
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 4,
     elevation: 5,
-    width: 150, // Adjust width as needed
-    marginTop: 8, // Space between button and dropdown
+    width: 150,
+    marginTop: 8,
   },
   dropdownItem: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a4e60', // Lighter border for items
+    borderBottomColor: '#3a4e60',
   },
   dropdownItemText: {
     color: '#fff',
@@ -931,10 +923,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e1e1e',
     color: '#fff',
   },
-  // New style for multiline TextInput
   textArea: {
-    minHeight: 100, // Adjust height as needed
-    textAlignVertical: 'top', // Align text to the top for multiline
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   dateRow: {
     flexDirection: 'row',
@@ -1016,14 +1007,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     paddingHorizontal: 2,
   },
+  datePickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   datePickerContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#1e1e1e',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
   },
   datePickerHeader: {
     flexDirection: 'row',
