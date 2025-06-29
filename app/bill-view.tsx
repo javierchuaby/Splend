@@ -75,7 +75,7 @@ export default function BillViewScreen() {
         setBill(fetchedBill);
 
         const tripDoc = await firestore().collection('trips').doc(tripId as string).get();
-        if ((tripDoc.exists())) {
+        if (tripDoc.exists()) {
           const tripData = tripDoc.data();
           const allTripMembers: any[] = tripData?.members || [];
           const resolvedMembers: TripMember[] = await Promise.all(
@@ -135,7 +135,7 @@ export default function BillViewScreen() {
 
   const handleGoBack = () => {
     router.push({
-      pathname: '/bills',
+      pathname: '/event-view',
       params: { eventId: eventId, tripId: tripId },
     });
   };
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
   backButton: {
-    fontSize: 20,
+    fontSize: 18,
     color: '#0a84ff',
   },
   headerTitleContainer: {
