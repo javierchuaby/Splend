@@ -229,6 +229,13 @@ export default function EventViewScreen() {
     });
   };
 
+  const navigateToBills = () => {
+    router.push({
+      pathname: '/bills',
+      params: { eventId: event?.id, tripId: tripId },
+    });
+  };
+
   const generateDateOptions = (): {
     years: number[];
     months: MonthOption[];
@@ -376,6 +383,7 @@ export default function EventViewScreen() {
                 </Text>
               </View>
             </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members</Text>
               <TouchableOpacity
@@ -399,6 +407,20 @@ export default function EventViewScreen() {
                     </Text>
                   )}
                 </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Bills</Text>
+              <TouchableOpacity
+                style={styles.membersCard}
+                onPress={navigateToBills}
+              >
+                <Text style={styles.billsCount}>
+                  {eventMembers.length} bill
+                  {eventMembers.length !== 1 ? 's' : ''}
+                </Text> 
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
             </View>
@@ -690,6 +712,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   membersCount: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
+    marginRight: 12,
+  },
+  billsCount: {
+    flex: 1,
     fontSize: 16,
     color: '#fff',
     fontWeight: '500',
