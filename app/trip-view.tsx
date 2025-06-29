@@ -262,13 +262,11 @@ export default function TripViewScreen() {
     }
 
     const eventMemberUids = [
-      ...(currentUser ? [currentUser.id] : []),
       ...selectedEventMembers.map(member => member.id),
     ];
 
     try {
-      // For now, setting to a default GeoPoint.
-      // In a real app, you would use a geocoding service to convert location name to coordinates.
+      // GeoPoint is still WIP... I have yet to master it. For now it will be a default location
       const locationGeoPoint = new firestore.GeoPoint(0, 0);
 
       const eventRef = await firestore().collection('events').add({
