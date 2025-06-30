@@ -1,4 +1,3 @@
-// this is trip-members.tsx
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';

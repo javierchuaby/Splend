@@ -1,17 +1,16 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 interface TripMember {
@@ -40,14 +39,10 @@ interface MonthOption {
   value: number;
 }
 
-export default function TripInfoScreen() {
+export default function ConcludedTripInfoScreen() {
   const router = useRouter();
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [tempStartDate, setTempStartDate] = useState(new Date());
-  const [tempEndDate, setTempEndDate] = useState(new Date());
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,32 +124,6 @@ export default function TripInfoScreen() {
     return unsubscribe;
   }, [tripId, currentUser]);
 
-  const saveTrip = async (updatedFields: Partial<Trip>) => {
-    if (!trip) return;
-
-    const firestoreUpdate: { [key: string]: any } = {};
-    if (updatedFields.startDate) {
-      firestoreUpdate.startDate = firestore.Timestamp.fromDate(
-        updatedFields.startDate
-      );
-    }
-    if (updatedFields.endDate) {
-      firestoreUpdate.endDate = firestore.Timestamp.fromDate(
-        updatedFields.endDate
-      );
-    }
-
-    try {
-      await firestore()
-        .collection('trips')
-        .doc(trip.id)
-        .update(firestoreUpdate);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update trip');
-      console.error(error);
-    }
-  };
-
   const deleteTrip = async () => {
     if (!trip) return;
     setIsManageTripModalVisible(false);
@@ -168,15 +137,16 @@ export default function TripInfoScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Delete all events associated with the trip
               if (trip.eventIds && trip.eventIds.length > 0) {
                 const eventPromises = trip.eventIds.map(eventId =>
                   firestore().collection('events').doc(eventId).delete()
                 );
                 await Promise.all(eventPromises);
               }
-
+              // Now delete the trip itself
               await firestore().collection('trips').doc(trip.id).delete();
-              router.push('/Home');
+              router.push('/Home'); // Back to Home after deleting the trip
             } catch (error) {
               Alert.alert('Error', 'Failed to delete trip');
               console.error(error);
@@ -187,25 +157,31 @@ export default function TripInfoScreen() {
     );
   };
 
-  const concludeTrip = async () => {
+  const unconcludeTrip = async () => {
     if (!trip) return;
     setIsManageTripModalVisible(false);
     Alert.alert(
-      'Conclude Trip',
-      `Are you sure you want to conclude "${trip.name}"? This will archive the trip and remove it from active trips.`,
+      'Unconclude Trip',
+      `Are you sure you want to unconclude "${trip.name}"? This will move the trip back to active trips.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Conclude',
+          text: 'Unconclude',
           style: 'default',
           onPress: async () => {
             try {
               await firestore().collection('trips').doc(trip.id).update({
-                isConcluded: true,
+                isConcluded: false,
               });
-              router.push('/Home');
+              router.replace({
+                pathname: '/trip-view',
+                params: { tripId: trip.id },
+              }); // Navigate to active trip view
             } catch (error) {
-              Alert.alert('Error', 'Failed to conclude trip, please try again');
+              Alert.alert(
+                'Error',
+                'Failed to unconclude trip, please try again'
+              );
               console.error(error);
             }
           },
@@ -234,73 +210,16 @@ export default function TripInfoScreen() {
 
   const navigateToMembers = () => {
     router.push({
-      pathname: '/trip-members',
+      pathname: '/concluded-trip-members',
       params: { tripId: trip?.id },
     });
   };
 
   const navigateToDescription = () => {
     router.push({
-      pathname: '/trip-description',
+      pathname: '/concluded-trip-description',
       params: { tripId: trip?.id },
     });
-  };
-
-  const generateDateOptions = (): {
-    years: number[];
-    months: MonthOption[];
-    days: number[];
-  } => {
-    const today = new Date();
-    const years: number[] = [];
-    const months: MonthOption[] = [];
-    const days: number[] = [];
-    for (let i = 0; i < 6; i++) {
-      years.push(today.getFullYear() + i);
-    }
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    monthNames.forEach((month, index) => {
-      months.push({ label: month, value: index });
-    });
-    for (let i = 1; i <= 31; i++) {
-      days.push(i);
-    }
-    return { years, months, days };
-  };
-
-  const { years, months, days } = generateDateOptions();
-
-  const handleStartDateDone = async () => {
-    if (!trip) return;
-    if (tempStartDate > trip.endDate) {
-      Alert.alert('Error', 'Start date cannot be after the end date');
-      return;
-    }
-    await saveTrip({ startDate: tempStartDate });
-    setShowStartDatePicker(false);
-  };
-
-  const handleEndDateDone = async () => {
-    if (!trip) return;
-    if (tempEndDate < trip.startDate) {
-      Alert.alert('Error', 'End date cannot be before the start date');
-      return;
-    }
-    await saveTrip({ endDate: tempEndDate });
-    setShowEndDatePicker(false);
   };
 
   const calculateGroupLedger = (): number => {
@@ -389,7 +308,7 @@ export default function TripInfoScreen() {
                   numberOfLines={4}
                   ellipsizeMode="tail"
                 >
-                  {trip.tripDescription || 'No description provided. Tap to add one.'}
+                  {trip.tripDescription || 'No description provided. Tap to view.'}
                 </Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
@@ -398,28 +317,16 @@ export default function TripInfoScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Duration</Text>
               <View style={styles.dateRow}>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setTempStartDate(new Date(trip.startDate));
-                    setShowStartDatePicker(true);
-                  }}
-                >
+                <View style={styles.dateButton}>
                   <Text style={styles.dateButtonText}>
                     Start: {formatDate(trip.startDate)}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setTempEndDate(new Date(trip.endDate));
-                    setShowEndDatePicker(true);
-                  }}
-                >
+                </View>
+                <View style={styles.dateButton}>
                   <Text style={styles.dateButtonText}>
                     End: {formatDate(trip.endDate)}
                   </Text>
-                </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.durationSubtextContainer}>
                 <Text style={styles.durationSubtext}>
@@ -488,186 +395,18 @@ export default function TripInfoScreen() {
                 <View style={styles.placeholder} />
               </View>
               <View style={styles.manageTripButtons}>
-                {!trip.isConcluded && (
-                  <TouchableOpacity
-                    style={styles.concludeButton}
-                    onPress={concludeTrip}
-                  >
-                    <Text style={styles.concludeButtonText}>Conclude Trip</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.unconcludeButton}
+                  onPress={unconcludeTrip}
+                >
+                  <Text style={styles.unconcludeButtonText}>Not Concluded</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={deleteTrip}
                 >
                   <Text style={styles.deleteButtonText}>Delete Trip</Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal
-          visible={showStartDatePicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowStartDatePicker(false)}
-        >
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerContainer}>
-              <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                  <Text style={styles.datePickerCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.datePickerTitle}>Select Start Date</Text>
-                <TouchableOpacity onPress={handleStartDateDone}>
-                  <Text style={styles.datePickerDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.pickerRow}>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getFullYear()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setFullYear(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
-                  ))}
-                </Picker>
-
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getMonth()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setMonth(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
-                  ))}
-                </Picker>
-
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempStartDate.getDate()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempStartDate);
-                    newDate.setDate(value);
-                    setTempStartDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal
-          visible={showEndDatePicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowEndDatePicker(false)}
-        >
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerContainer}>
-              <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                  <Text style={styles.datePickerCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.datePickerTitle}>Select End Date</Text>
-                <TouchableOpacity onPress={handleEndDateDone}>
-                  <Text style={styles.datePickerDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.pickerRow}>
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getFullYear()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setFullYear(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
-                  ))}
-                </Picker>
-
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getMonth()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setMonth(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
-                  ))}
-                </Picker>
-
-                <Picker
-                  style={styles.picker}
-                  selectedValue={tempEndDate.getDate()}
-                  onValueChange={value => {
-                    const newDate = new Date(tempEndDate);
-                    newDate.setDate(value);
-                    setTempEndDate(newDate);
-                  }}
-                  dropdownIconColor="#fff"
-                  itemStyle={{ color: '#fff' }}
-                >
-                  {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
-                  ))}
-                </Picker>
               </View>
             </View>
           </View>
@@ -840,21 +579,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  concludeSection: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-  },
-  concludeButton: {
-    backgroundColor: '#34C759',
+  unconcludeButton: {
+    backgroundColor: '#34C759', // A green color
     borderWidth: 1,
-    borderColor: '#4d2c2c',
+    borderColor: '#34C759',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
     marginBottom: 20,
   },
-  concludeButtonText: {
+  unconcludeButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
