@@ -1,4 +1,3 @@
-// trip-view.tsx
 import auth from '@react-native-firebase/auth';
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
@@ -429,7 +428,7 @@ export default function TripViewScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.push('/Home')}>
               <Text style={styles.backButton}>←</Text>
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
@@ -451,7 +450,7 @@ export default function TripViewScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.push('/Home')}>
               <Text style={styles.backButton}>←</Text>
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
@@ -474,7 +473,7 @@ export default function TripViewScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.push('/Home')}>
             <Text style={styles.backButton}>←</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -487,7 +486,7 @@ export default function TripViewScreen() {
           <View style={styles.placeholder} />
         </View>
 
-        {/* Integrated Events Section */}
+        {/* Events Section */}
         {events.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No events yet</Text>

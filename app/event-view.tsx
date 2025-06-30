@@ -77,6 +77,8 @@ export default function EventViewScreen() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [eventMembers, setEventMembers] = useState<TripMember[]>([]);
+  const [isManageEventModalVisible, setIsManageEventModalVisible] =
+    useState(false);
 
   const [isNewBillModalVisible, setIsNewBillModalVisible] = useState(false);
   const [newBillName, setNewBillName] = useState('');
@@ -245,6 +247,7 @@ export default function EventViewScreen() {
 
   const deleteEvent = async () => {
     if (!event || !tripId) return;
+    setIsManageEventModalVisible(false);
     Alert.alert(
       'Delete Event',
       `Are you sure you want to delete "${event.name}"? This action cannot be undone.`,
@@ -621,6 +624,7 @@ export default function EventViewScreen() {
             <TouchableOpacity onPress={handleEventViewBack}>
               <Text style={styles.backButton}>←</Text>
             </TouchableOpacity>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>Loading event...</Text>
@@ -639,6 +643,7 @@ export default function EventViewScreen() {
             <TouchableOpacity onPress={handleEventViewBack}>
               <Text style={styles.backButton}>←</Text>
             </TouchableOpacity>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>
@@ -657,6 +662,9 @@ export default function EventViewScreen() {
         <View style={styles.header}>
           <TouchableOpacity onPress={handleEventViewBack}>
             <Text style={styles.backButton}>←</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setIsManageEventModalVisible(true)}>
+            <Text style={styles.manageEventButtonText}>Manage</Text>
           </TouchableOpacity>
         </View>
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
@@ -748,27 +756,54 @@ export default function EventViewScreen() {
                   scrollEnabled={false}
                 />
               )}
-              <TouchableOpacity
-                style={styles.createBillButton}
-                onPress={() => {
-                  setIsNewBillModalVisible(true);
-                  setNewBillName('');
-                  setNewBillDateTime(new Date());
-                  setNewBillItems([]);
-                  setNewWhoPaid([]);
-                }}
-              >
-                <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
 
-        <View style={styles.deleteSection}>
-          <TouchableOpacity style={styles.deleteButton} onPress={deleteEvent}>
-            <Text style={styles.deleteButtonText}>Delete Event</Text>
+        {/* Persistent Create New Bill Button */}
+        <View style={styles.bottomButtonContainer}>
+          <TouchableOpacity
+            style={styles.createBillButton}
+            onPress={() => {
+              setIsNewBillModalVisible(true);
+              setNewBillName('');
+              setNewBillDateTime(new Date());
+              setNewBillItems([]);
+              setNewWhoPaid([]);
+            }}
+          >
+            <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={isManageEventModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setIsManageEventModalVisible(false)}
+        >
+          <View style={styles.manageEventOverlay}>
+            <View style={styles.manageEventContainer}>
+              <View style={styles.manageEventHeader}>
+                <TouchableOpacity
+                  onPress={() => setIsManageEventModalVisible(false)}
+                >
+                  <Text style={styles.manageEventCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.manageEventTitle}>Manage Event</Text>
+                <View style={styles.placeholder} />
+              </View>
+              <View style={styles.manageEventButtons}>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={deleteEvent}
+                >
+                  <Text style={styles.deleteButtonText}>Delete Event</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <Modal
           visible={showStartDatePicker}
@@ -1449,9 +1484,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
-  deleteSection: {
+  bottomButtonContainer: {
     paddingHorizontal: 20,
-    paddingTop: 0,
+    paddingBottom: 20,
+    backgroundColor: '#121212', // Match screen background
+    borderTopWidth: 1,
+    borderTopColor: '#333', // Optional: subtle separator
   },
   deleteButton: {
     backgroundColor: '#2c1a1a',
@@ -1461,7 +1499,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 20, // Only if within a scrollable view
   },
   deleteButtonText: {
     fontSize: 16,
@@ -1546,11 +1584,11 @@ const styles = StyleSheet.create({
     color: '#bbb',
   },
   createBillButton: {
-    backgroundColor: '#305cde',
+    backgroundColor: '#0a84ff', // Changed color to blue
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 20, // Add a bit of margin from content above it
   },
   createBillButtonText: {
     color: '#fff',
@@ -1730,5 +1768,44 @@ const styles = StyleSheet.create({
     color: '#ff453a',
     fontWeight: 'bold',
     paddingHorizontal: 2,
+  },
+  manageEventButtonText: {
+    fontSize: 16,
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
+  manageEventOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  manageEventContainer: {
+    backgroundColor: '#1e1e1e',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
+    paddingBottom: 20,
+  },
+  manageEventHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  manageEventCancel: {
+    fontSize: 16,
+    color: '#0a84ff',
+  },
+  manageEventTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  manageEventButtons: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    gap: 12,
   },
 });

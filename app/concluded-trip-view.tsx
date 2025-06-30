@@ -1,10 +1,9 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import { useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
+  FlatList,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -34,16 +33,21 @@ interface Trip {
   eventIds: string[];
 }
 
-interface MonthOption {
-  label: string;
-  value: number;
+interface Event {
+  id: string;
+  name: string;
+  location: { latitude: number; longitude: number };
+  startDateTime: Date;
+  endDateTime: Date;
+  memberIds: string[];
+  billIds: string[];
 }
 
 export default function ConcludedTripViewScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,7 +84,7 @@ export default function ConcludedTripViewScreen() {
       .collection('trips')
       .doc(tripId as string)
       .onSnapshot(
-        doc => {
+        async doc => {
           if (doc.exists()) {
             const data = doc.data();
             const currentTrip: Trip = {
@@ -102,12 +106,13 @@ export default function ConcludedTripViewScreen() {
               eventIds: data!.eventIds || [],
             };
 
+            // If trip is no longer concluded, redirect to active trip view
             if (!currentTrip.isConcluded) {
-                router.replace({
-                    pathname: '/trip-view',
-                    params: { tripId: currentTrip.id },
-                });
-                return;
+              router.replace({
+                pathname: '/trip-view',
+                params: { tripId: currentTrip.id },
+              });
+              return;
             }
 
             setTrip(currentTrip);
@@ -116,9 +121,33 @@ export default function ConcludedTripViewScreen() {
               member => member.id === currentUser.id
             );
             setHasAccess(isMember);
+
+            if (currentTrip.eventIds && currentTrip.eventIds.length > 0) {
+              const eventsSnapshot = await firestore()
+                .collection('events')
+                .where(firestore.FieldPath.documentId(), 'in', currentTrip.eventIds)
+                .get();
+              const fetchedEvents: Event[] = eventsSnapshot.docs.map(eventDoc => {
+                const eventData = eventDoc.data();
+                return {
+                  id: eventDoc.id,
+                  name: eventData.eventName,
+                  location: eventData.eventLocation,
+                  startDateTime: eventData.startDateTime.toDate(),
+                  endDateTime: eventData.endDateTime.toDate(),
+                  memberIds: eventData.memberIds,
+                  billIds: eventData.billIds,
+                };
+              });
+              setEvents(fetchedEvents);
+            } else {
+              setEvents([]);
+            }
+
             setIsLoading(false);
           } else {
             setTrip(null);
+            setEvents([]);
             setHasAccess(false);
             setIsLoading(false);
           }
@@ -126,6 +155,7 @@ export default function ConcludedTripViewScreen() {
         error => {
           console.error('Error fetching trip:', error);
           setTrip(null);
+          setEvents([]);
           setHasAccess(false);
           setIsLoading(false);
         }
@@ -133,61 +163,41 @@ export default function ConcludedTripViewScreen() {
     return unsubscribe;
   }, [tripId, currentUser, router]);
 
-  const deleteTrip = async () => {
-    if (!trip) return;
-    Alert.alert(
-      'Delete Trip',
-      `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await firestore().collection('trips').doc(trip.id).delete();
-              router.back();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete trip');
-              console.error(error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const formatDate = (date: Date) => {
+  const formatDateTime = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
-  const calculateDuration = (startDate: Date, endDate: Date) => {
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) {
-      return '1 day';
-    } else {
-      return `${diffDays + 1} days`;
-    }
-  };
-
-  const navigateToMembers = () => {
+  const navigateToEventView = (event: Event) => {
     router.push({
-      pathname: '/concluded-trip-members', 
-      params: { tripId: trip?.id },
+      pathname: '/event-view',
+      params: { eventId: event.id, tripId: tripId },
     });
   };
 
-  const navigateToDescription = () => {
-    router.push({
-      pathname: '/concluded-trip-description', 
-      params: { tripId: trip?.id },
-    });
-  };
+  const renderEventItem = ({ item }: { item: Event }) => (
+    <TouchableOpacity
+      style={styles.eventCard}
+      onPress={() => navigateToEventView(item)}
+    >
+      <Text style={styles.eventName}>{item.name}</Text>
+      <Text style={styles.eventDates}>
+        {formatDateTime(item.startDateTime)} -{' '}
+        {formatDateTime(item.endDateTime)}
+      </Text>
+      <View style={styles.eventDetails}>
+        <Text style={styles.eventDetailText}>
+          Members: {item.memberIds.length}
+        </Text>
+        <Text style={styles.eventDetailText}>Bills: {item.billIds.length}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   // Loading...
   if (isLoading) {
@@ -199,6 +209,8 @@ export default function ConcludedTripViewScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.backButton}>← All Trips</Text>
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>Concluded Trip</Text>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>Loading trip...</Text>
@@ -218,6 +230,8 @@ export default function ConcludedTripViewScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.backButton}>← All Trips</Text>
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>Concluded Trip</Text>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>
@@ -237,91 +251,39 @@ export default function ConcludedTripViewScreen() {
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.backButton}>← All Trips</Text>
           </TouchableOpacity>
-        </View>
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.content}>
-            <Text style={styles.tripTitle}>{trip.name}</Text>
-
-            {/* Description Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <TouchableOpacity
-                style={styles.descriptionCard}
-                onPress={navigateToDescription}
-              >
-                <Text
-                  style={styles.descriptionText}
-                  numberOfLines={4}
-                  ellipsizeMode="tail"
-                >
-                  {trip.tripDescription ||
-                    'No description provided for this concluded trip.'}
-                </Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Trip Duration */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Duration</Text>
-              <View style={styles.dateRow}>
-                <View style={styles.dateButton}>
-                  <Text style={styles.dateButtonText}>
-                    Start: {formatDate(trip.startDate)}
-                  </Text>
-                </View>
-                <View style={styles.dateButton}>
-                  <Text style={styles.dateButtonText}>
-                    End: {formatDate(trip.endDate)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.durationSubtextContainer}>
-                <Text style={styles.durationSubtext}>
-                  {calculateDuration(trip.startDate, trip.endDate)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Trip Members */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Members</Text>
-              <TouchableOpacity
-                style={styles.membersCard}
-                onPress={navigateToMembers}
-              >
-                <Text style={styles.membersCount}>
-                  {trip.members.length} member
-                  {trip.members.length !== 1 ? 's' : ''}
-                </Text>
-                <View style={styles.membersList}>
-                  {trip.members.slice(0, 2).map((member, index) => (
-                    <Text key={member.id} style={styles.memberName}>
-                      {member.displayName}
-                      {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
-                    </Text>
-                  ))}
-                  {trip.members.length > 2 && (
-                    <Text style={styles.memberName}>
-                      +{trip.members.length - 2} more
-                    </Text>
-                  )}
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Delete Trip button */}
-        <View style={styles.deleteSection}>
-          <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
-            <Text style={styles.deleteButtonText}>Delete Trip</Text>
+          <Text style={styles.headerTitle}>{trip.name}</Text>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: '/concluded-trip-info',
+                params: { tripId: trip?.id },
+              })
+            }
+          >
+            <Text style={styles.infoButtonText}>Info</Text>
           </TouchableOpacity>
         </View>
+        <ScrollView style={styles.scrollContainer}>
+          <View style={styles.content}>
+            <Text style={styles.sectionTitle}>Events</Text>
+            {events.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateText}>No events recorded.</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  This trip has no events.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={events}
+                renderItem={renderEventItem}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.eventsList}
+                scrollEnabled={false} // Disable FlatList's own scroll as it's inside a ScrollView
+              />
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </>
   );
@@ -349,118 +311,91 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  infoButtonText: {
+    fontSize: 16,
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
   placeholder: {
     width: 50,
   },
   scrollContainer: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  tripTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 8,
+    padding: 20,
   },
   sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  createEventButton: {
+    backgroundColor: '#0a84ff',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  createEventButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  eventsList: {
+    paddingBottom: 10,
+  },
+  eventCard: {
+    backgroundColor: '#1e1e1e',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  eventName: {
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  descriptionCard: {
-    backgroundColor: '#1e1e1e',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 80,
-  },
-  descriptionText: {
-    flex: 1,
+  eventDates: {
     fontSize: 14,
     color: '#aaa',
-    lineHeight: 20,
+    marginBottom: 8,
   },
-  dateRow: {
+  eventDetails: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  dateButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#1e1e1e',
-  },
-  dateButtonText: {
-    fontSize: 14,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  durationSubtextContainer: {
+    justifyContent: 'space-between',
     marginTop: 8,
-    alignItems: 'center',
   },
-  durationSubtext: {
+  eventDetailText: {
     fontSize: 14,
-    color: '#aaa',
+    color: '#bbb',
   },
-  membersCard: {
+  emptyStateContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
     backgroundColor: '#1e1e1e',
-    padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
-  membersCount: {
+  emptyStateText: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
-    marginRight: 12,
-  },
-  membersList: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  memberName: {
-    fontSize: 14,
+    fontWeight: '600',
     color: '#aaa',
+    marginBottom: 4,
   },
-  chevron: {
-    fontSize: 20,
+  emptyStateSubtext: {
+    fontSize: 14,
     color: '#777',
-    marginLeft: 8,
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,
@@ -470,68 +405,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#aaa',
-  },
-  deleteSection: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-  },
-  deleteButton: {
-    backgroundColor: '#2c1a1a',
-    borderWidth: 1,
-    borderColor: '#4d2c2c',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ff453a',
-  },
-  datePickerOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  datePickerContainer: {
-    backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-  },
-  datePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  datePickerCancel: {
-    fontSize: 16,
-    color: '#0a84ff',
-  },
-  datePickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  datePickerDone: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    height: 200,
-    backgroundColor: '#1e1e1e',
-  },
-  picker: {
-    flex: 1,
-    color: '#fff',
-    backgroundColor: '#1e1e1e',
   },
 });
