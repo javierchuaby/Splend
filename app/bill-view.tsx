@@ -2,13 +2,13 @@ import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface TripMember {
@@ -134,7 +134,7 @@ export default function BillViewScreen() {
   };
 
   const handleGoBack = () => {
-    router.push({
+    router.replace({
       pathname: '/event-view',
       params: { eventId: eventId, tripId: tripId },
     });
