@@ -1,7 +1,7 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 interface Event {
@@ -18,17 +18,50 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [participantNames, setParticipantNames] = useState<string[]>([]);
+
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    const fetchNames = async () => {
+      if (!selectedEvent?.participants || selectedEvent.participants.length === 0) {
+        setParticipantNames([]);
+        return;
+      }
+      try {
+        const uids = selectedEvent.participants;
+        const names: string[] = [];
+        for (let i = 0; i < uids.length; i += 10) {
+          const batch = uids.slice(i, i + 10);
+          const querySnapshot = await firestore()
+            .collection('users')
+            .where(firestore.FieldPath.documentId(), 'in', batch)
+            .get();
+          querySnapshot.forEach(doc => {
+            const data = doc.data();
+            names.push(data.displayName || data.username || doc.id);
+          });
+        }
+        names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        setParticipantNames(names);
+      } catch (err) {
+        setParticipantNames(selectedEvent.participants);
+      }
+    };
+    if (selectedEvent && modalVisible) {
+      fetchNames();
+    }
+  }, [selectedEvent, modalVisible]);
 
   useEffect(() => {
     const fetchEvents = async () => {
       const user = auth().currentUser;
-      console.log('Current user UID:', user?.uid);
       if (!user) {
         setEvents([]);
         setLoading(false);
         return;
       }
-
       const unsubscribe = firestore()
         .collection('events')
         .where('memberIds', 'array-contains', user.uid)
@@ -40,13 +73,12 @@ export default function CalendarScreen() {
               let time = '';
               let start = data.startDateTime;
 
-              // Firestore Timestamp
               if (start && typeof start === 'object' && typeof start.toDate === 'function') {
                 const jsDate = start.toDate();
                 date = jsDate.toISOString().slice(0, 10); // YYYY-MM-DD
                 time = jsDate.toTimeString().slice(0, 5); // HH:MM
               }
-              // String format: "6 July 2025 at 16:54:17 UTC+8"
+
               else if (typeof start === 'string') {
                 const match = start.match(/^(\d{1,2}) (\w+) (\d{4}) at (\d{2}):(\d{2})/);
                 if (match) {
@@ -74,7 +106,6 @@ export default function CalendarScreen() {
                 ...data,
               };
             });
-            console.log('Fetched events:', fetchedEvents);
             setEvents(fetchedEvents);
             setLoading(false);
           },
@@ -110,6 +141,16 @@ export default function CalendarScreen() {
   const eventsForSelectedDate = events.filter(event => event.date === selectedDate);
   const markedDates = buildMarkedDates();
 
+  const handleEventPress = (event: Event) => {
+    setSelectedEvent(event);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedEvent(null);
+  };
+
   return (
     <View style={styles.container}>
       <Calendar
@@ -142,14 +183,70 @@ export default function CalendarScreen() {
             data={eventsForSelectedDate}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
-              <View style={styles.eventItem}>
+              <TouchableOpacity
+                style={styles.eventItem}
+                onPress={() => handleEventPress(item)}
+              >
                 <Text style={styles.eventTitle}>{item.title}</Text>
-                <Text style={styles.eventTime}>{item.time}</Text>
-              </View>
+                <Text style={styles.eventTime}>
+                  {item.time}
+                </Text>
+              </TouchableOpacity>
             )}
           />
         )}
       </View>
+
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView>
+              <Text style={styles.modalTitle}>{selectedEvent?.title}</Text>
+              <Text style={styles.modalLabel}>Date:</Text>
+              <Text style={styles.modalValue}>
+                {selectedEvent?.date
+                  ? new Date(selectedEvent.date).toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : ''}
+              </Text>
+              <Text style={styles.modalLabel}>Time:</Text>
+              <Text style={styles.modalValue}>{selectedEvent?.time}</Text>
+                {selectedEvent?.eventLocation && (
+                  <>
+                    <Text style={styles.modalLabel}>Location:</Text>
+                    <Text style={styles.modalValue}>
+                      {Array.isArray(selectedEvent.eventLocation)
+                        ? selectedEvent.eventLocation.join(', ')
+                        : typeof selectedEvent.eventLocation === 'object'
+                          ? JSON.stringify(selectedEvent.eventLocation)
+                          : String(selectedEvent.eventLocation)}
+                    </Text>
+                  </>
+                )}
+                {participantNames.length > 0 && (
+                  <>
+                    <Text style={styles.modalLabel}>Participants:</Text>
+                    <Text style={styles.modalValue}>
+                      {participantNames.join('\n')}
+                    </Text>
+                  </>
+                )}
+            </ScrollView>
+            <Pressable style={styles.closeButton} onPress={handleCloseModal}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -199,5 +296,50 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 14,
     marginTop: 4,
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(30,30,30,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: 340,
+    backgroundColor: '#232323',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'flex-start',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  modalLabel: {
+    color: '#aaa',
+    fontSize: 14,
+    marginTop: 10,
+  },
+  modalValue: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  closeButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    backgroundColor: '#305cde',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
