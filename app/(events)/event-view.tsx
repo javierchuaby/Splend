@@ -1,5 +1,5 @@
 import auth from '@react-native-firebase/auth';
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -30,7 +30,7 @@ interface TripMember {
 interface Event {
   id: string;
   name: string;
-  location: FirebaseFirestoreTypes.GeoPoint;
+  location: string;
   startDateTime: Date;
   endDateTime: Date;
   memberIds: string[];
@@ -227,7 +227,7 @@ export default function EventViewScreen() {
     if (updatedFields.name) {
       firestoreUpdate.eventName = updatedFields.name;
     }
-    if (updatedFields.location) {
+    if (updatedFields.location !== undefined) {
       firestoreUpdate.eventLocation = updatedFields.location;
     }
     if (updatedFields.memberIds) {
@@ -674,7 +674,7 @@ export default function EventViewScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Location</Text>
               <View style={styles.infoCard}>
-                <Text style={styles.infoText}>{event.location.latitude}, {event.location.longitude}</Text>
+                <Text style={styles.infoText}>{event.location}</Text>
               </View>
             </View>
 
@@ -760,7 +760,6 @@ export default function EventViewScreen() {
           </View>
         </ScrollView>
 
-        {/* Persistent Create New Bill Button */}
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity
             style={styles.createBillButton}
@@ -971,7 +970,6 @@ export default function EventViewScreen() {
           </View>
         </Modal>
 
-        {/* New Bill Modal */}
         <Modal
           visible={isNewBillModalVisible}
           animationType="slide"
@@ -1487,9 +1485,9 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: '#121212', // Match screen background
+    backgroundColor: '#121212',
     borderTopWidth: 1,
-    borderTopColor: '#333', // Optional: subtle separator
+    borderTopColor: '#333',
   },
   deleteButton: {
     backgroundColor: '#2c1a1a',
@@ -1499,7 +1497,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: 20, // Only if within a scrollable view
+    marginBottom: 20,
   },
   deleteButtonText: {
     fontSize: 16,
@@ -1584,11 +1582,11 @@ const styles = StyleSheet.create({
     color: '#bbb',
   },
   createBillButton: {
-    backgroundColor: '#0a84ff', // Changed color to blue
+    backgroundColor: '#0a84ff',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20, // Add a bit of margin from content above it
+    marginTop: 20,
   },
   createBillButtonText: {
     color: '#fff',

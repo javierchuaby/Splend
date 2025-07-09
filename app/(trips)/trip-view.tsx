@@ -1,5 +1,5 @@
 import auth from '@react-native-firebase/auth';
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -40,7 +40,7 @@ interface Trip {
 interface Event {
   id: string;
   name: string;
-  location: FirebaseFirestoreTypes.GeoPoint;
+  location: string;
   startDateTime: Date;
   endDateTime: Date;
   memberIds: string[];
@@ -60,7 +60,6 @@ export default function TripViewScreen() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Event related states (moved from events.tsx)
   const [events, setEvents] = useState<Event[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newEventName, setNewEventName] = useState('');
@@ -265,12 +264,9 @@ export default function TripViewScreen() {
     ];
 
     try {
-      // GeoPoint is still WIP... I have yet to master it. For now it will be a default location
-      const locationGeoPoint = new firestore.GeoPoint(0, 0);
-
       const eventRef = await firestore().collection('events').add({
         eventName: newEventName.trim(),
-        eventLocation: locationGeoPoint,
+        eventLocation: newEventLocation.trim(),
         startDateTime: firestore.Timestamp.fromDate(newEventStartDate),
         endDateTime: firestore.Timestamp.fromDate(newEventEndDate),
         memberIds: eventMemberUids,
@@ -486,7 +482,6 @@ export default function TripViewScreen() {
           <View style={styles.placeholder} />
         </View>
 
-        {/* Events Section */}
         {events.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No events yet</Text>
@@ -518,7 +513,6 @@ export default function TripViewScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* New Event Modal */}
         <Modal
           visible={isModalVisible}
           animationType="slide"
@@ -658,7 +652,6 @@ export default function TripViewScreen() {
               </View>
             </ScrollView>
 
-            {/* Start Date Picker Modal */}
             <Modal
               visible={showStartDatePicker}
               transparent={true}
@@ -744,7 +737,6 @@ export default function TripViewScreen() {
               </View>
             </Modal>
 
-            {/* End Date Picker Modal */}
             <Modal
               visible={showEndDatePicker}
               transparent={true}
@@ -887,7 +879,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
-  // Events related styles
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -907,7 +898,7 @@ const styles = StyleSheet.create({
   },
   eventsList: {
     padding: 20,
-    paddingBottom: 100, // To make space for the create event button
+    paddingBottom: 100,
   },
   eventCard: {
     backgroundColor: '#000000',
