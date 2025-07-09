@@ -1,17 +1,40 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
+enum EventStatus {
+  UPCOMING = 'upcoming',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+}
+enum EventType {
+  MEETING = 'meeting',
+  TRIP = 'trip',
+  OTHER = 'other',
+}
+interface UserProfile {
+  uid: string;
+  displayName?: string;
+  username?: string;
+  email?: string;
+}
 interface Event {
   id: string;
   title: string;
   date: string;
   time: string;
   participants: string[];
+  eventLocation?: string | string[] | object;
+  description?: string;
+  organizerId?: string;
+  status?: EventStatus;
+  type?: EventType;
   [key: string]: any;
 }
+
+const userCache: Record<string, UserProfile> = {};
 
 export default function CalendarScreen() {
   const today = new Date().toISOString().split('T')[0];
@@ -32,14 +55,23 @@ export default function CalendarScreen() {
       try {
         const uids = selectedEvent.participants;
         const names: string[] = [];
-        for (let i = 0; i < uids.length; i += 10) {
-          const batch = uids.slice(i, i + 10);
+        const uncached: string[] = [];
+        uids.forEach(uid => {
+          if (userCache[uid]) {
+            names.push(userCache[uid].displayName || userCache[uid].username || userCache[uid].uid);
+          } else {
+            uncached.push(uid);
+          }
+        });
+        for (let i = 0; i < uncached.length; i += 10) {
+          const batch = uncached.slice(i, i + 10);
           const querySnapshot = await firestore()
             .collection('users')
             .where(firestore.FieldPath.documentId(), 'in', batch)
             .get();
           querySnapshot.forEach(doc => {
             const data = doc.data();
+            userCache[doc.id] = { uid: doc.id, ...data };
             names.push(data.displayName || data.username || doc.id);
           });
         }
@@ -122,7 +154,8 @@ export default function CalendarScreen() {
     fetchEvents();
   }, []);
 
-  const buildMarkedDates = () => {
+
+  const markedDates = useMemo(() => {
     const marked: { [date: string]: any } = {};
     events.forEach(event => {
       if (event.date) {
@@ -136,20 +169,36 @@ export default function CalendarScreen() {
       selectedTextColor: '#fff',
     };
     return marked;
-  };
+  }, [events, selectedDate]);
 
-  const eventsForSelectedDate = events.filter(event => event.date === selectedDate);
-  const markedDates = buildMarkedDates();
+  const eventsForSelectedDate = useMemo(
+    () => events.filter(event => event.date === selectedDate),
+    [events, selectedDate]
+  );
 
-  const handleEventPress = (event: Event) => {
+
+  const EventListItem = React.memo(({ event, onPress }: { event: Event; onPress: (e: Event) => void }) => (
+    <TouchableOpacity
+      style={styles.eventItem}
+      onPress={() => onPress(event)}
+      accessibilityRole="button"
+      accessibilityLabel={`Event: ${event.title}, at ${event.time}`}
+    >
+      <Text style={styles.eventTitle}>{event.title}</Text>
+      <Text style={styles.eventTime}>{event.time}</Text>
+    </TouchableOpacity>
+  ));
+
+  const handleEventPress = useCallback((event: Event) => {
     setSelectedEvent(event);
     setModalVisible(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     setSelectedEvent(null);
-  };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -164,35 +213,37 @@ export default function CalendarScreen() {
           arrowColor: '#305cde',
           todayTextColor: '#305cde',
         }}
+        accessibilityLabel="Calendar view"
+        accessibilityRole="adjustable"
       />
       <View style={styles.eventsSection}>
         <Text style={styles.eventsTitle}>
           Events for{' '}
-          {new Date(selectedDate).toLocaleDateString(undefined, {
+          {new Intl.DateTimeFormat(undefined, {
             weekday: 'long',
             month: 'short',
             day: 'numeric',
-          })}
+          }).format(new Date(selectedDate))}
         </Text>
         {loading ? (
           <ActivityIndicator color="#305cde" style={{ marginTop: 32 }} />
         ) : eventsForSelectedDate.length === 0 ? (
-          <Text style={styles.noEvents}>No events for this day.</Text>
+          <Text style={styles.noEvents} accessibilityLabel="No events for this day.">
+            No events for this day.
+          </Text>
         ) : (
           <FlatList
             data={eventsForSelectedDate}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.eventItem}
-                onPress={() => handleEventPress(item)}
-              >
-                <Text style={styles.eventTitle}>{item.title}</Text>
-                <Text style={styles.eventTime}>
-                  {item.time}
-                </Text>
-              </TouchableOpacity>
+              <EventListItem event={item} onPress={handleEventPress} />
             )}
+            initialNumToRender={8}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            ListEmptyComponent={<Text style={styles.noEvents}>No events for this day.</Text>}
+            accessibilityLabel="Event list"
+            accessibilityRole="list"
           />
         )}
       </View>
@@ -203,49 +254,67 @@ export default function CalendarScreen() {
         transparent={true}
         onRequestClose={handleCloseModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ScrollView>
-              <Text style={styles.modalTitle}>{selectedEvent?.title}</Text>
-              <Text style={styles.modalLabel}>Date:</Text>
-              <Text style={styles.modalValue}>
-                {selectedEvent?.date
-                  ? new Date(selectedEvent.date).toLocaleDateString(undefined, {
-                      weekday: 'long',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  : ''}
-              </Text>
-              <Text style={styles.modalLabel}>Time:</Text>
-              <Text style={styles.modalValue}>{selectedEvent?.time}</Text>
-                {selectedEvent?.eventLocation && (
-                  <>
-                    <Text style={styles.modalLabel}>Location:</Text>
-                    <Text style={styles.modalValue}>
-                      {Array.isArray(selectedEvent.eventLocation)
-                        ? selectedEvent.eventLocation.join(', ')
-                        : typeof selectedEvent.eventLocation === 'object'
+        <TouchableWithoutFeedback onPress={handleCloseModal} accessible={false}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent} accessible accessibilityLabel="Event details modal">
+                <ScrollView>
+                  <Text style={styles.modalTitle}>{selectedEvent?.title}</Text>
+                  <Text style={styles.modalLabel}>Date:</Text>
+                  <Text style={styles.modalValue}>
+                    {selectedEvent?.date
+                      ? new Intl.DateTimeFormat(undefined, {
+                          weekday: 'long',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }).format(new Date(selectedEvent.date))
+                      : ''}
+                  </Text>
+                  <Text style={styles.modalLabel}>Time:</Text>
+                  <Text style={styles.modalValue}>{selectedEvent?.time}</Text>
+                  {selectedEvent?.eventLocation && (
+                    <>
+                      <Text style={styles.modalLabel}>Location:</Text>
+                      <Text style={styles.modalValue}>
+                        {Array.isArray(selectedEvent.eventLocation)
+                          ? selectedEvent.eventLocation.join(', ')
+                          : typeof selectedEvent.eventLocation === 'object'
                           ? JSON.stringify(selectedEvent.eventLocation)
                           : String(selectedEvent.eventLocation)}
-                    </Text>
-                  </>
-                )}
-                {participantNames.length > 0 && (
-                  <>
-                    <Text style={styles.modalLabel}>Participants:</Text>
-                    <Text style={styles.modalValue}>
+                      </Text>
+                    </>
+                  )}
+                  <Text style={styles.modalLabel}>Participants:</Text>
+                  {participantNames.length > 0 ? (
+                    <Text style={styles.modalValue} accessibilityLabel="Participant list">
                       {participantNames.join('\n')}
                     </Text>
-                  </>
-                )}
-            </ScrollView>
-            <Pressable style={styles.closeButton} onPress={handleCloseModal}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
+                  ) : (
+                    <Text style={styles.noEvents} accessibilityLabel="No participants for this event.">
+                      No participants for this event.
+                    </Text>
+                  )}
+                  {selectedEvent?.description && (
+                    <>
+                      <Text style={styles.modalLabel}>Description:</Text>
+                      <Text style={styles.modalValue}>{selectedEvent.description}</Text>
+                    </>
+                  )}
+                  {selectedEvent?.organizerId && (
+                    <>
+                      <Text style={styles.modalLabel}>Organizer:</Text>
+                      <Text style={styles.modalValue}>{selectedEvent.organizerId}</Text>
+                    </>
+                  )}
+                </ScrollView>
+                <Pressable style={styles.closeButton} onPress={handleCloseModal} accessibilityRole="button" accessibilityLabel="Close event details">
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -301,7 +370,7 @@ const styles = StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(30,30,30,0.7)',
+    backgroundColor: '#1e1e1e',
     justifyContent: 'center',
     alignItems: 'center',
   },
