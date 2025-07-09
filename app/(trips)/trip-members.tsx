@@ -574,6 +574,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   memberUsername: {
+    flexShrink: 1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     fontSize: 15,
     color: '#fff',
     fontWeight: '500',

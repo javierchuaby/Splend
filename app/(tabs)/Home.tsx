@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -15,10 +16,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
-// Types
 interface TripMember {
   id: string;
   username: string;
@@ -193,7 +193,7 @@ export default function HomeScreen() {
 
   const createTrip = async () => {
     if (!newTripName.trim()) {
-      Alert.alert('We\'re going on a what?', 'Please enter a trip name.');
+      Alert.alert("We're going on a what?", 'Please enter a trip name.');
       return;
     }
     if (!currentUser) {
@@ -444,132 +444,140 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Trip Name</Text>
-              <TextInput
-                style={styles.textInput}
-                value={newTripName}
-                onChangeText={setNewTripName}
-                placeholder="Enter trip name"
-                placeholderTextColor="#777"
-                keyboardAppearance="dark"
-              />
-            </View>
-
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Trip Description (Optional)</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                value={newTripDescription}
-                onChangeText={setNewTripDescription}
-                placeholder="Describe your trip..."
-                placeholderTextColor="#777"
-                keyboardAppearance="dark"
-                multiline={true}
-                numberOfLines={4}
-              />
-            </View>
-
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Dates</Text>
-              <View style={styles.dateRow}>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setTempStartDate(startDate);
-                    setShowStartDatePicker(true);
-                  }}
-                >
-                  <Text style={styles.dateButtonText}>
-                    Start: {formatDate(startDate)}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setTempEndDate(endDate);
-                    setShowEndDatePicker(true);
-                  }}
-                >
-                  <Text style={styles.dateButtonText}>
-                    End: {formatDate(endDate)}
-                  </Text>
-                </TouchableOpacity>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={styles.keyboardAvoidingView}
+          >
+            <ScrollView
+              style={styles.modalContent}
+              contentContainerStyle={styles.scrollViewContentContainer}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Trip Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={newTripName}
+                  onChangeText={setNewTripName}
+                  placeholder="Enter trip name"
+                  placeholderTextColor="#777"
+                  keyboardAppearance="dark"
+                />
               </View>
-            </View>
 
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Add Members</Text>
-              <TextInput
-                style={styles.textInput}
-                value={memberSearchQuery}
-                onChangeText={setMemberSearchQuery}
-                placeholder="Search users by username or display name"
-                placeholderTextColor="#777"
-                keyboardAppearance="dark"
-              />
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Trip Description (Optional)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={newTripDescription}
+                  onChangeText={setNewTripDescription}
+                  placeholder="Describe your trip..."
+                  placeholderTextColor="#777"
+                  keyboardAppearance="dark"
+                  multiline={true}
+                  numberOfLines={4}
+                />
+              </View>
 
-              {memberSearchQuery.length > 0 && (
-                <View style={styles.searchResults}>
-                  {isLoadingUsers ? (
-                    <Text style={styles.loadingText}>Searching...</Text>
-                  ) : searchResults.length > 0 ? (
-                    searchResults.map(user => (
-                      <TouchableOpacity
-                        key={user.id}
-                        style={styles.searchResultItem}
-                        onPress={() => addMember(user)}
-                      >
-                        <Text style={styles.searchResultText}>
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Dates</Text>
+                <View style={styles.dateRow}>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => {
+                      setTempStartDate(startDate);
+                      setShowStartDatePicker(true);
+                    }}
+                  >
+                    <Text style={styles.dateButtonText}>
+                      Start: {formatDate(startDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => {
+                      setTempEndDate(endDate);
+                      setShowEndDatePicker(true);
+                    }}
+                  >
+                    <Text style={styles.dateButtonText}>
+                      End: {formatDate(endDate)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Add Members</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={memberSearchQuery}
+                  onChangeText={setMemberSearchQuery}
+                  placeholder="Search users by username or display name"
+                  placeholderTextColor="#777"
+                  keyboardAppearance="dark"
+                />
+
+                {memberSearchQuery.length > 0 && (
+                  <View style={styles.searchResults}>
+                    {isLoadingUsers ? (
+                      <Text style={styles.loadingText}>Searching...</Text>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map(user => (
+                        <TouchableOpacity
+                          key={user.id}
+                          style={styles.searchResultItem}
+                          onPress={() => addMember(user)}
+                        >
+                          <Text style={styles.searchResultText}>
+                            <Text style={{ fontWeight: 'bold' }}>
+                              {user.displayName}
+                            </Text>{' '}
+                            <Text style={styles.usernameText}>
+                              @{user.username}
+                            </Text>
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <Text style={styles.noResultsText}>No users found</Text>
+                    )}
+                  </View>
+                )}
+
+                {selectedMembers.length > 0 && (
+                  <View style={styles.selectedMembers}>
+                    <Text style={styles.selectedMembersTitle}>
+                      Selected Members:
+                    </Text>
+                    {selectedMembers.map(member => (
+                      <View key={member.id} style={styles.selectedMemberItem}>
+                        <Text style={styles.selectedMemberText}>
                           <Text style={{ fontWeight: 'bold' }}>
-                            {user.displayName}
+                            {member.displayName.length > 24
+                              ? `${member.displayName.substring(0, 24)}...`
+                              : member.displayName
+                            }
                           </Text>{' '}
                           <Text style={styles.usernameText}>
-                            @{user.username}
+                            @{member.username}
                           </Text>
                         </Text>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <Text style={styles.noResultsText}>No users found</Text>
-                  )}
-                </View>
-              )}
+                        {currentUser?.id !== member.id && (
+                          <TouchableOpacity
+                            onPress={() => removeMember(member.id)}
+                          >
+                            <Text style={styles.removeMemberButton}>remove</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
 
-              {selectedMembers.length > 0 && (
-                <View style={styles.selectedMembers}>
-                  <Text style={styles.selectedMembersTitle}>
-                    Selected Members:
-                  </Text>
-                  {selectedMembers.map(member => (
-                    <View key={member.id} style={styles.selectedMemberItem}>
-                      <Text style={styles.selectedMemberText}>
-                        <Text style={{ fontWeight: 'bold' }}>
-                          {member.displayName.length > 24
-                            ? `${member.displayName.substring(0, 24)}...`
-                            : member.displayName
-                          }
-                        </Text>{' '}
-                        <Text style={styles.usernameText}>
-                          @{member.username}
-                        </Text>
-                      </Text>
-                      {currentUser?.id !== member.id && (
-                        <TouchableOpacity
-                          onPress={() => removeMember(member.id)}
-                        >
-                          <Text style={styles.removeMemberButton}>remove</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </ScrollView>
-
-          {/* Start Date Picker Modal */}
           <Modal
             visible={showStartDatePicker}
             transparent={true}
@@ -653,7 +661,6 @@ export default function HomeScreen() {
             </View>
           </Modal>
 
-          {/* End Date Picker Modal */}
           <Modal
             visible={showEndDatePicker}
             transparent={true}
@@ -1078,5 +1085,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollViewContentContainer: {
+    paddingBottom: 50,
   },
 });
