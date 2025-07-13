@@ -1,3 +1,5 @@
+// TripPackingListScreen.tsx
+
 import { MaterialIcons } from '@expo/vector-icons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
@@ -5,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Animated,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -12,7 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 interface TripPackingItem {
@@ -33,6 +36,7 @@ export default function TripPackingListScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [newItemText, setNewItemText] = useState('');
+  const [fadeAnims, setFadeAnims] = useState<{ [key: string]: Animated.Value }>({});
 
   useEffect(() => {
     if (!resolvedTripId) return;
@@ -47,7 +51,23 @@ export default function TripPackingListScreen() {
             const sortedItems = (data.packingListItems || [])
               .sort((a: TripPackingItem, b: TripPackingItem) => a.name.localeCompare(b.name))
               .sort((a: TripPackingItem, b: TripPackingItem) => Number(a.isChecked) - Number(b.isChecked));
+
+            const newAnims: { [key: string]: Animated.Value } = {};
+            sortedItems.forEach((item: TripPackingItem) => {
+              newAnims[item.id] = new Animated.Value(0);
+            });
+            setFadeAnims(newAnims);
             setPackingItems(sortedItems);
+
+            sortedItems.forEach((item: TripPackingItem) => {
+              Animated.spring(newAnims[item.id], {
+                toValue: 1,
+                useNativeDriver: true,
+                stiffness: 120,
+                damping: 14,
+                mass: 0.9,
+              }).start();
+            });
           }
           setIsLoading(false);
         },
@@ -125,14 +145,6 @@ export default function TripPackingListScreen() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.loadingText}>Loading packing list...</Text>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -150,26 +162,30 @@ export default function TripPackingListScreen() {
         <ScrollView contentContainerStyle={styles.listWrapper}>
           <View style={styles.card}>
             {packingItems.map(item => (
-              <TouchableOpacity
+              <Animated.View
                 key={item.id}
-                style={styles.listRowNoBorder}
-                onPress={() => handleToggleItem(item)}
+                style={{ opacity: fadeAnims[item.id] || 1 }}
               >
-                <MaterialIcons
-                  name={item.isChecked ? 'check-box' : 'check-box-outline-blank'}
-                  size={24}
-                  color={item.isChecked ? '#0a84ff' : '#777'}
-                  style={styles.leftIcon}
-                />
-                <View style={styles.itemTextContainer}>
-                  <Text style={[styles.cardText, item.isChecked && styles.cardTextChecked]}>
-                    {item.name}
-                  </Text>
-                  {item.isChecked && item.checkedByName && (
-                    <Text style={styles.cardTextSub}>Checked by {item.checkedByName}</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.listRowNoBorder}
+                  onPress={() => handleToggleItem(item)}
+                >
+                  <MaterialIcons
+                    name={item.isChecked ? 'check-box' : 'check-box-outline-blank'}
+                    size={24}
+                    color={item.isChecked ? '#0a84ff' : '#777'}
+                    style={styles.leftIcon}
+                  />
+                  <View style={styles.itemTextContainer}>
+                    <Text style={[styles.cardText, item.isChecked && styles.cardTextChecked]}>
+                      {item.name}
+                    </Text>
+                    {item.isChecked && item.checkedByName && (
+                      <Text style={styles.cardTextSub}>Checked by {item.checkedByName}</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
             ))}
           </View>
         </ScrollView>
