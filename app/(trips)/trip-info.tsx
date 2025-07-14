@@ -14,6 +14,8 @@ import {
   View,
 } from 'react-native';
 
+import TripPackingListPreview from '@/components/TripPackingListPreview';
+
 interface TripMember {
   id: string;
   username: string;
@@ -439,7 +441,7 @@ export default function TripInfoScreen() {
                 </Text>
                 <View style={styles.membersList}>
                   {trip.members.slice(0, 2).map((member, index) => (
-                    <Text key={member.id} style={styles.memberName}>
+                    <Text key={`${member.id}-${index}`} style={styles.memberName}>
                       {member.displayName}
                       {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
                     </Text>
@@ -466,6 +468,10 @@ export default function TripInfoScreen() {
                   <Text style={styles.ledgerValue}>${individualLedger.toFixed(2)}</Text>
                 </View>
               </View>
+            </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Packing List</Text>
+              <TripPackingListPreview />
             </View>
           </View>
         </ScrollView>
