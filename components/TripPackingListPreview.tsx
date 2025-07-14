@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import firestore from '@react-native-firebase/firestore';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -10,9 +10,12 @@ interface PackingListItem {
   isChecked: boolean;
 }
 
-export default function TripPackingListPreview() {
+interface TripPackingListPreviewProps {
+  tripId: string;
+}
+
+export default function TripPackingListPreview({ tripId }: TripPackingListPreviewProps) {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams();
   const [items, setItems] = useState<PackingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
