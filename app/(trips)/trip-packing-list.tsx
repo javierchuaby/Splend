@@ -1,5 +1,3 @@
-// TripPackingListScreen.tsx
-
 import { MaterialIcons } from '@expo/vector-icons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
@@ -32,6 +30,7 @@ export default function TripPackingListScreen() {
   const { tripId } = useLocalSearchParams();
   const router = useRouter();
   const resolvedTripId = Array.isArray(tripId) ? tripId[0] : tripId;
+
   const [packingItems, setPackingItems] = useState<TripPackingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,6 +55,7 @@ export default function TripPackingListScreen() {
             sortedItems.forEach((item: TripPackingItem) => {
               newAnims[item.id] = new Animated.Value(0);
             });
+
             setFadeAnims(newAnims);
             setPackingItems(sortedItems);
 
@@ -82,6 +82,7 @@ export default function TripPackingListScreen() {
 
   const handleAddItem = async () => {
     if (!newItemText.trim()) return;
+
     const currentUser = auth().currentUser;
     if (!currentUser) return;
 
@@ -145,13 +146,40 @@ export default function TripPackingListScreen() {
     });
   };
 
+  if (isLoading) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                router.push({
+                  pathname: '/trip-info',
+                  params: { tripId: resolvedTripId }
+                });
+              }}
+            >
+              <Text style={styles.backButton}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Packing List</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading packing list...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
-        <View style={styles.headerCustom}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backButton}>← Back</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} >
+            <Text style={styles.backButton}>← Trip</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Packing List</Text>
           <TouchableOpacity onPress={() => setModalVisible(true)}>
@@ -159,38 +187,70 @@ export default function TripPackingListScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.listWrapper}>
-          <View style={styles.card}>
-            {packingItems.map(item => (
-              <Animated.View
-                key={item.id}
-                style={{ opacity: fadeAnims[item.id] || 1 }}
-              >
-                <TouchableOpacity
-                  style={styles.listRowNoBorder}
-                  onPress={() => handleToggleItem(item)}
-                >
-                  <MaterialIcons
-                    name={item.isChecked ? 'check-box' : 'check-box-outline-blank'}
-                    size={24}
-                    color={item.isChecked ? '#0a84ff' : '#777'}
-                    style={styles.leftIcon}
-                  />
-                  <View style={styles.itemTextContainer}>
-                    <Text style={[styles.cardText, item.isChecked && styles.cardTextChecked]}>
-                      {item.name}
-                    </Text>
-                    {item.isChecked && item.checkedByName && (
-                      <Text style={styles.cardTextSub}>Checked by {item.checkedByName}</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
+        <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <View style={styles.packingCard}>
+              {packingItems.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <MaterialIcons name="inventory-2" size={48} color="#666" />
+                  <Text style={styles.emptyStateText}>No items in your packing list</Text>
+                  <Text style={styles.emptyStateSubtext}>Tap "Add" to get started</Text>
+                </View>
+              ) : (
+                packingItems.map((item, index) => (
+                  <Animated.View
+                    key={item.id}
+                    style={[
+                      styles.packingItem,
+                      index === packingItems.length - 1 && styles.lastPackingItem,
+                      { opacity: fadeAnims[item.id] }
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.packingItemContent}
+                      onPress={() => handleToggleItem(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.checkboxContainer}>
+                        <View style={[
+                          styles.customCheckbox,
+                          item.isChecked && styles.customCheckboxChecked
+                        ]}>
+                          {item.isChecked && (
+                            <MaterialIcons
+                              name="check"
+                              size={16}
+                              color="#fff"
+                            />
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.itemTextContainer}>
+                        <Text style={[
+                          styles.itemText,
+                          item.isChecked && styles.itemTextChecked
+                        ]}>
+                          {item.name}
+                        </Text>
+                        {item.isChecked && item.checkedByName && (
+                          <Text style={styles.checkedByText}>
+                            Checked by {item.checkedByName}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))
+              )}
+            </View>
           </View>
         </ScrollView>
 
-        <Modal visible={modalVisible} animationType="slide">
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -203,11 +263,14 @@ export default function TripPackingListScreen() {
             </View>
             <View style={styles.modalContent}>
               <TextInput
+                style={styles.textInput}
+                placeholder="Enter item name..."
+                placeholderTextColor="#666"
                 value={newItemText}
                 onChangeText={setNewItemText}
-                placeholder="Enter item name"
-                placeholderTextColor="#777"
-                style={styles.textInput}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleAddItem}
               />
             </View>
           </SafeAreaView>
@@ -222,14 +285,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
-  headerCustom: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    backgroundColor: '#121212',
   },
   backButton: {
     fontSize: 16,
@@ -240,49 +302,110 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  placeholder: {
+    width: 50,
+  },
   addButton: {
     fontSize: 16,
     color: '#0a84ff',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  listWrapper: {
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
+  content: {
+    flex: 1,
     padding: 20,
   },
-  card: {
+  packingCard: {
     backgroundColor: '#1e1e1e',
     borderRadius: 12,
-    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  listRowNoBorder: {
+  packingItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  lastPackingItem: {
+    borderBottomWidth: 0,
+  },
+  packingItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 16,
     paddingHorizontal: 16,
   },
-  leftIcon: {
+  checkboxContainer: {
     marginRight: 12,
+  },
+  customCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#666',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customCheckboxChecked: {
+    backgroundColor: '#0a84ff',
+    borderColor: '#0a84ff',
   },
   itemTextContainer: {
     flex: 1,
   },
-  cardText: {
+  itemText: {
     fontSize: 16,
     color: '#fff',
+    fontWeight: '500',
   },
-  cardTextChecked: {
+  itemTextChecked: {
     textDecorationLine: 'line-through',
     color: '#888',
   },
-  cardTextSub: {
+  checkedByText: {
     fontSize: 12,
     color: '#aaa',
     marginTop: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '500',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#aaa',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
     color: '#aaa',
     fontSize: 16,
     textAlign: 'center',
-    marginTop: 40,
   },
   modalContainer: {
     flex: 1,
@@ -291,16 +414,18 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
-    borderBottomColor: '#333',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
   modalCancel: {
     fontSize: 16,
     color: '#0a84ff',
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
   },
@@ -310,13 +435,15 @@ const styles = StyleSheet.create({
     color: '#0a84ff',
   },
   modalContent: {
-    padding: 16,
+    padding: 20,
   },
   textInput: {
     backgroundColor: '#2c2c2c',
     color: '#fff',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#333',
   },
 });

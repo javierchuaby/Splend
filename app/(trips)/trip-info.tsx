@@ -1,3 +1,5 @@
+import { BillSettlementManager } from '@/components/BillSettlementManager';
+import TripPackingListPreview from '@/components/TripPackingListPreview';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
@@ -13,8 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-import TripPackingListPreview from '@/components/TripPackingListPreview';
 
 interface TripMember {
   id: string;
@@ -53,8 +53,9 @@ export default function TripInfoScreen() {
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isManageTripModalVisible, setIsManageTripModalVisible] =
-    useState(false);
+  const [isManageTripModalVisible, setIsManageTripModalVisible] = useState(false);
+  const [showSettlement, setShowSettlement] = useState(false);
+  const [isFromConcludeFlow, setIsFromConcludeFlow] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -74,6 +75,7 @@ export default function TripInfoScreen() {
         }
       }
     };
+
     fetchCurrentUser();
   }, []);
 
@@ -108,6 +110,7 @@ export default function TripInfoScreen() {
               isConcluded: data!.isConcluded || false,
               eventIds: data!.eventIds || [],
             };
+
             setTrip(currentTrip);
 
             const isMember = currentTrip.members.some(
@@ -128,6 +131,7 @@ export default function TripInfoScreen() {
           setIsLoading(false);
         }
       );
+
     return unsubscribe;
   }, [tripId, currentUser]);
 
@@ -135,11 +139,13 @@ export default function TripInfoScreen() {
     if (!trip) return;
 
     const firestoreUpdate: { [key: string]: any } = {};
+
     if (updatedFields.startDate) {
       firestoreUpdate.startDate = firestore.Timestamp.fromDate(
         updatedFields.startDate
       );
     }
+
     if (updatedFields.endDate) {
       firestoreUpdate.endDate = firestore.Timestamp.fromDate(
         updatedFields.endDate
@@ -159,7 +165,9 @@ export default function TripInfoScreen() {
 
   const deleteTrip = async () => {
     if (!trip) return;
+
     setIsManageTripModalVisible(false);
+
     Alert.alert(
       'Delete Trip',
       `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
@@ -191,29 +199,38 @@ export default function TripInfoScreen() {
 
   const concludeTrip = async () => {
     if (!trip) return;
+
     setIsManageTripModalVisible(false);
+
     Alert.alert(
       'Conclude Trip',
-      `Are you sure you want to conclude "${trip.name}"? This will archive the trip and remove it from active trips.`,
+      `Are you sure you want to conclude "${trip.name}"? This will calculate final bill settlements.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Conclude',
+          text: 'Conclude & Split Bills',
           style: 'default',
-          onPress: async () => {
-            try {
-              await firestore().collection('trips').doc(trip.id).update({
-                isConcluded: true,
-              });
-              router.push('/Home');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to conclude trip, please try again');
-              console.error(error);
-            }
+          onPress: () => {
+            setIsFromConcludeFlow(true);
+            setShowSettlement(true);
           },
         },
       ]
     );
+  };
+
+  const concludeTripAfterSettlement = async () => {
+    if (!trip) return;
+
+    try {
+      await firestore().collection('trips').doc(trip.id).update({
+        isConcluded: true,
+      });
+      router.push('/Home');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to conclude trip, please try again');
+      console.error('Trip conclusion error:', error);
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -257,9 +274,11 @@ export default function TripInfoScreen() {
     const years: number[] = [];
     const months: MonthOption[] = [];
     const days: number[] = [];
+
     for (let i = 0; i < 6; i++) {
       years.push(today.getFullYear() + i);
     }
+
     const monthNames = [
       'January',
       'February',
@@ -274,12 +293,15 @@ export default function TripInfoScreen() {
       'November',
       'December',
     ];
+
     monthNames.forEach((month, index) => {
       months.push({ label: month, value: index });
     });
+
     for (let i = 1; i <= 31; i++) {
       days.push(i);
     }
+
     return { years, months, days };
   };
 
@@ -287,20 +309,24 @@ export default function TripInfoScreen() {
 
   const handleStartDateDone = async () => {
     if (!trip) return;
+
     if (tempStartDate > trip.endDate) {
       Alert.alert('Error', 'Start date cannot be after the end date');
       return;
     }
+
     await saveTrip({ startDate: tempStartDate });
     setShowStartDatePicker(false);
   };
 
   const handleEndDateDone = async () => {
     if (!trip) return;
+
     if (tempEndDate < trip.startDate) {
       Alert.alert('Error', 'End date cannot be before the start date');
       return;
     }
+
     await saveTrip({ endDate: tempEndDate });
     setShowEndDatePicker(false);
   };
@@ -321,7 +347,11 @@ export default function TripInfoScreen() {
   if (isLoading) {
     return (
       <>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+          }}
+        />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -341,19 +371,28 @@ export default function TripInfoScreen() {
   if (!trip || !hasAccess) {
     return (
       <>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+          }}
+        />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity 
+              onPress={() => {
+                router.push({
+                  pathname: '/(trips)/trip-view',
+                  params: { tripId: tripId }
+                });
+              }}
+            >
               <Text style={styles.backButton}>← Trip</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Info</Text>
             <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              Trip not found or you don't have access.
-            </Text>
+            <Text style={styles.errorText}>Trip not found or you don't have access.</Text>
           </View>
         </SafeAreaView>
       </>
@@ -365,7 +404,11 @@ export default function TripInfoScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -376,21 +419,15 @@ export default function TripInfoScreen() {
             <Text style={styles.manageTripButtonText}>Manage</Text>
           </TouchableOpacity>
         </View>
+
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
             <Text style={styles.tripTitle}>{trip.name}</Text>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <TouchableOpacity
-                style={styles.descriptionCard}
-                onPress={navigateToDescription}
-              >
-                <Text
-                  style={styles.descriptionText}
-                  numberOfLines={4}
-                  ellipsizeMode="tail"
-                >
+              <TouchableOpacity style={styles.descriptionCard} onPress={navigateToDescription}>
+                <Text style={styles.descriptionText}>
                   {trip.tripDescription || 'No description provided. Tap to add one.'}
                 </Text>
                 <Text style={styles.chevron}>›</Text>
@@ -407,9 +444,7 @@ export default function TripInfoScreen() {
                     setShowStartDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>
-                    Start: {formatDate(trip.startDate)}
-                  </Text>
+                  <Text style={styles.dateButtonText}>Start: {formatDate(trip.startDate)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dateButton}
@@ -418,9 +453,7 @@ export default function TripInfoScreen() {
                     setShowEndDatePicker(true);
                   }}
                 >
-                  <Text style={styles.dateButtonText}>
-                    End: {formatDate(trip.endDate)}
-                  </Text>
+                  <Text style={styles.dateButtonText}>End: {formatDate(trip.endDate)}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.durationSubtextContainer}>
@@ -429,27 +462,22 @@ export default function TripInfoScreen() {
                 </Text>
               </View>
             </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members</Text>
-              <TouchableOpacity
-                style={styles.membersCard}
-                onPress={navigateToMembers}
-              >
+              <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
                 <Text style={styles.membersCount}>
-                  {trip.members.length} member
-                  {trip.members.length !== 1 ? 's' : ''}
+                  {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
                 </Text>
                 <View style={styles.membersList}>
                   {trip.members.slice(0, 2).map((member, index) => (
-                    <Text key={`${member.id}-${index}`} style={styles.memberName}>
+                    <Text key={member.id} style={styles.memberName}>
                       {member.displayName}
                       {index < Math.min(trip.members.length - 1, 2) ? ', ' : ''}
                     </Text>
                   ))}
                   {trip.members.length > 2 && (
-                    <Text style={styles.memberName}>
-                      +{trip.members.length - 2} more
-                    </Text>
+                    <Text style={styles.memberName}>+{trip.members.length - 2} more</Text>
                   )}
                 </View>
                 <Text style={styles.chevron}>›</Text>
@@ -467,46 +495,64 @@ export default function TripInfoScreen() {
                   <Text style={styles.ledgerLabel}>Your Ledger:</Text>
                   <Text style={styles.ledgerValue}>${individualLedger.toFixed(2)}</Text>
                 </View>
+
+                <View style={styles.ledgerSeparator} />
+
+                <TouchableOpacity 
+                  style={styles.settlementButtonCompact}
+                  onPress={() => {
+                    setIsFromConcludeFlow(false);
+                    setShowSettlement(true);
+                  }}
+                >
+                  <Text style={styles.settlementButtonCompactText}>Calculate Bill Settlement</Text>
+                </TouchableOpacity>
               </View>
             </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Packing List</Text>
-              <TripPackingListPreview />
+              <TripPackingListPreview tripId={tripId as string} />
             </View>
           </View>
         </ScrollView>
 
         <Modal
           visible={isManageTripModalVisible}
-          transparent={true}
           animationType="slide"
+          transparent={true}
           onRequestClose={() => setIsManageTripModalVisible(false)}
         >
-          <View style={styles.manageTripOverlay}>
+          <View style={styles.modalOverlay}>
             <View style={styles.manageTripContainer}>
               <View style={styles.manageTripHeader}>
-                <TouchableOpacity
-                  onPress={() => setIsManageTripModalVisible(false)}
-                >
+                <TouchableOpacity onPress={() => setIsManageTripModalVisible(false)}>
                   <Text style={styles.manageTripCancel}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={styles.manageTripTitle}>Manage Trip</Text>
                 <View style={styles.placeholder} />
               </View>
+
               <View style={styles.manageTripButtons}>
+                <TouchableOpacity
+                  style={styles.primaryActionButton}
+                  onPress={() => {
+                    setIsManageTripModalVisible(false);
+                    setIsFromConcludeFlow(false);
+                    setShowSettlement(true);
+                  }}
+                >
+                  <Text style={styles.primaryActionButtonText}>Split Bills</Text>
+                </TouchableOpacity>
+
                 {!trip.isConcluded && (
-                  <TouchableOpacity
-                    style={styles.concludeButton}
-                    onPress={concludeTrip}
-                  >
-                    <Text style={styles.concludeButtonText}>Conclude Trip</Text>
+                  <TouchableOpacity style={styles.successActionButton} onPress={concludeTrip}>
+                    <Text style={styles.successActionButtonText}>Conclude Trip</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={deleteTrip}
-                >
-                  <Text style={styles.deleteButtonText}>Delete Trip</Text>
+
+                <TouchableOpacity style={styles.destructiveActionButton} onPress={deleteTrip}>
+                  <Text style={styles.destructiveActionButtonText}>Delete Trip</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -515,8 +561,8 @@ export default function TripInfoScreen() {
 
         <Modal
           visible={showStartDatePicker}
-          transparent={true}
           animationType="slide"
+          transparent={true}
           onRequestClose={() => setShowStartDatePicker(false)}
         >
           <View style={styles.datePickerOverlay}>
@@ -535,7 +581,7 @@ export default function TripInfoScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getFullYear()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempStartDate);
                     newDate.setFullYear(value);
                     setTempStartDate(newDate);
@@ -544,18 +590,14 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
+                    <Picker.Item key={year} label={year.toString()} value={year} />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getMonth()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempStartDate);
                     newDate.setMonth(value);
                     setTempStartDate(newDate);
@@ -564,18 +606,14 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
+                    <Picker.Item key={month.value} label={month.label} value={month.value} />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempStartDate.getDate()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempStartDate);
                     newDate.setDate(value);
                     setTempStartDate(newDate);
@@ -584,11 +622,7 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
+                    <Picker.Item key={day} label={day.toString()} value={day} />
                   ))}
                 </Picker>
               </View>
@@ -598,8 +632,8 @@ export default function TripInfoScreen() {
 
         <Modal
           visible={showEndDatePicker}
-          transparent={true}
           animationType="slide"
+          transparent={true}
           onRequestClose={() => setShowEndDatePicker(false)}
         >
           <View style={styles.datePickerOverlay}>
@@ -618,7 +652,7 @@ export default function TripInfoScreen() {
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getFullYear()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempEndDate);
                     newDate.setFullYear(value);
                     setTempEndDate(newDate);
@@ -627,18 +661,14 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {years.map(year => (
-                    <Picker.Item
-                      key={year}
-                      label={year.toString()}
-                      value={year}
-                    />
+                    <Picker.Item key={year} label={year.toString()} value={year} />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getMonth()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempEndDate);
                     newDate.setMonth(value);
                     setTempEndDate(newDate);
@@ -647,18 +677,14 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {months.map(month => (
-                    <Picker.Item
-                      key={month.value}
-                      label={month.label}
-                      value={month.value}
-                    />
+                    <Picker.Item key={month.value} label={month.label} value={month.value} />
                   ))}
                 </Picker>
 
                 <Picker
                   style={styles.picker}
                   selectedValue={tempEndDate.getDate()}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const newDate = new Date(tempEndDate);
                     newDate.setDate(value);
                     setTempEndDate(newDate);
@@ -667,17 +693,26 @@ export default function TripInfoScreen() {
                   itemStyle={{ color: '#fff' }}
                 >
                   {days.map(day => (
-                    <Picker.Item
-                      key={day}
-                      label={day.toString()}
-                      value={day}
-                    />
+                    <Picker.Item key={day} label={day.toString()} value={day} />
                   ))}
                 </Picker>
               </View>
             </View>
           </View>
         </Modal>
+
+        <BillSettlementManager
+          tripId={tripId as string}
+          tripName={trip.name}
+          visible={showSettlement}
+          onClose={() => {
+            setShowSettlement(false);
+            if (isFromConcludeFlow) {
+              concludeTripAfterSettlement();
+            }
+            setIsFromConcludeFlow(false);
+          }}
+        />
       </SafeAreaView>
     </>
   );
@@ -760,6 +795,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#aaa',
     lineHeight: 20,
+    textAlignVertical: 'top',
   },
   dateRow: {
     flexDirection: 'row',
@@ -827,62 +863,66 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
+  ledgerCard: {
+    backgroundColor: '#1e1e1e',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ledgerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ledgerLabel: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  ledgerValue: {
+    fontSize: 16,
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
+  ledgerSeparator: {
+    height: 1,
+    backgroundColor: '#333',
+    marginVertical: 12,
+  },
+  settlementButtonCompact: {
+    backgroundColor: '#FF9500',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  settlementButtonCompactText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
   eventsSection: {
     paddingHorizontal: 20,
     paddingBottom: 0,
-  },
-  eventsButton: {
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  eventsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
   },
   concludeSection: {
     paddingHorizontal: 20,
     paddingTop: 0,
   },
-  concludeButton: {
-    backgroundColor: '#34C759',
-    borderWidth: 1,
-    borderColor: '#4d2c2c',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  concludeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
   deleteSection: {
     paddingHorizontal: 20,
     paddingTop: 0,
-  },
-  deleteButton: {
-    backgroundColor: '#2c1a1a',
-    borderWidth: 1,
-    borderColor: '#4d2c2c',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ff453a',
   },
   datePickerOverlay: {
     flex: 1,
@@ -932,63 +972,103 @@ const styles = StyleSheet.create({
     color: '#0a84ff',
     fontWeight: '600',
   },
-  manageTripOverlay: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   manageTripContainer: {
     backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     overflow: 'hidden',
-    paddingBottom: 20,
+    paddingBottom: 12,
+    maxHeight: '50%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   manageTripHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    backgroundColor: '#1e1e1e',
   },
   manageTripCancel: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#0a84ff',
+    fontWeight: '500',
   },
   manageTripTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: '#fff',
+    letterSpacing: 0.3,
   },
   manageTripButtons: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    gap: 12,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 10,
   },
-  ledgerCard: {
-    backgroundColor: '#1e1e1e',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
+  primaryActionButton: {
+    backgroundColor: '#FF9500',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#FF9500',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    elevation: 4,
+  },
+  primaryActionButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  successActionButton: {
+    backgroundColor: '#34C759',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
     elevation: 3,
   },
-  ledgerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  successActionButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  destructiveActionButton: {
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    borderWidth: 1,
+    borderColor: '#ff453a',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
     marginBottom: 8,
   },
-  ledgerLabel: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  ledgerValue: {
-    fontSize: 16,
-    color: '#0a84ff',
+  destructiveActionButtonText: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#ff453a',
+    letterSpacing: 0.2,
   },
 });

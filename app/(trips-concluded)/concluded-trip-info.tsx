@@ -1,16 +1,17 @@
+import BillSettlementManager from '@/components/BillSettlementManager';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface TripMember {
@@ -34,9 +35,28 @@ interface Trip {
   eventIds: string[];
 }
 
-interface MonthOption {
-  label: string;
-  value: number;
+interface UserBalance {
+  userId: string;
+  userName: string;
+  totalPaid: number;
+  totalOwed: number;
+  netBalance: number;
+}
+
+interface Settlement {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+}
+
+interface SettlementData {
+  balances: UserBalance[];
+  settlements: Settlement[];
+  totalExpenses: number;
+  summary: {
+    totalTransactions: number;
+  };
 }
 
 export default function ConcludedTripInfoScreen() {
@@ -46,8 +66,10 @@ export default function ConcludedTripInfoScreen() {
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isManageTripModalVisible, setIsManageTripModalVisible] =
-    useState(false);
+  const [isManageTripModalVisible, setIsManageTripModalVisible] = useState(false);
+  const [showSettlement, setShowSettlement] = useState(false);
+  const [settlementData, setSettlementData] = useState<SettlementData | null>(null);
+  const [loadingSettlement, setLoadingSettlement] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -102,7 +124,6 @@ export default function ConcludedTripInfoScreen() {
               eventIds: data!.eventIds || [],
             };
             setTrip(currentTrip);
-
             const isMember = currentTrip.members.some(
               member => member.id === currentUser.id
             );
@@ -121,12 +142,192 @@ export default function ConcludedTripInfoScreen() {
           setIsLoading(false);
         }
       );
+
     return unsubscribe;
   }, [tripId, currentUser]);
 
+  useEffect(() => {
+    if (trip && !isLoading) {
+      loadSettlementData();
+    }
+  }, [trip, isLoading]);
+
+  const calculateUserBalances = (bills: any[], tripMembers: TripMember[]): UserBalance[] => {
+    const balances: { [userId: string]: UserBalance } = {};
+
+    tripMembers.forEach(member => {
+      balances[member.id] = {
+        userId: member.id,
+        userName: member.displayName,
+        totalPaid: 0,
+        totalOwed: 0,
+        netBalance: 0
+      };
+    });
+
+    bills.forEach(bill => {
+      bill.whoPaid.forEach((payer: any) => {
+        if (balances[payer.uid]) {
+          balances[payer.uid].totalPaid += Math.round(payer.amountPaid * 100);
+        }
+      });
+
+      bill.billItems.forEach((item: any) => {
+        const itemPriceCents = Math.round(item.billItemPrice * 100);
+        let costPerPersonCents: number;
+
+        if (item.costPerUser !== undefined) {
+          costPerPersonCents = Math.round(item.costPerUser * 100);
+        } else {
+          costPerPersonCents = Math.round(itemPriceCents / item.billItemUserIds.length);
+        }
+
+        item.billItemUserIds.forEach((userId: string) => {
+          if (balances[userId]) {
+            balances[userId].totalOwed += costPerPersonCents;
+          }
+        });
+      });
+    });
+
+    Object.values(balances).forEach(balance => {
+      balance.netBalance = balance.totalPaid - balance.totalOwed;
+    });
+
+    return Object.values(balances);
+  };
+
+  const optimiseSettlements = (originalBalances: UserBalance[]): Settlement[] => {
+    const balances = originalBalances.map(balance => ({ ...balance }));
+    const settlements: Settlement[] = [];
+
+    const creditors = balances
+      .filter(b => b.netBalance > 1)
+      .sort((a, b) => b.netBalance - a.netBalance);
+
+    const debtors = balances
+      .filter(b => b.netBalance < -1)
+      .map(b => ({ ...b, netBalance: Math.abs(b.netBalance) }))
+      .sort((a, b) => b.netBalance - a.netBalance);
+
+    let creditorIndex = 0;
+    let debtorIndex = 0;
+
+    while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+      const creditor = creditors[creditorIndex];
+      const debtor = debtors[debtorIndex];
+
+      const settlementAmountCents = Math.min(creditor.netBalance, debtor.netBalance);
+
+      if (settlementAmountCents > 1) {
+        settlements.push({
+          id: `${debtor.userId}-${creditor.userId}-${Date.now()}`,
+          from: debtor.userId,
+          to: creditor.userId,
+          amount: settlementAmountCents
+        });
+
+        creditor.netBalance -= settlementAmountCents;
+        debtor.netBalance -= settlementAmountCents;
+      }
+
+      if (creditor.netBalance <= 1) creditorIndex++;
+      if (debtor.netBalance <= 1) debtorIndex++;
+    }
+
+    return settlements;
+  };
+
+  const getSmartTruncatedSettlements = (settlements: Settlement[], currentUserId: string) => {
+    const userInvolvedSettlements = settlements.filter(
+      settlement => settlement.from === currentUserId || settlement.to === currentUserId
+    );
+
+    let displayedSettlements: Settlement[];
+    let moreCount: number;
+
+    if (userInvolvedSettlements.length > 0) {
+      displayedSettlements = userInvolvedSettlements.slice(0, 3);
+      moreCount = settlements.length - displayedSettlements.length;
+    } else {
+      displayedSettlements = settlements.slice(0, 2);
+      moreCount = settlements.length - displayedSettlements.length;
+    }
+
+    return {
+      displayed: displayedSettlements,
+      moreCount: moreCount > 0 ? moreCount : 0
+    };
+  };
+
+  const loadSettlementData = async () => {
+    if (!trip) return;
+
+    try {
+      setLoadingSettlement(true);
+      const eventIds = trip.eventIds || [];
+
+      if (eventIds.length === 0) {
+        setSettlementData(null);
+        return;
+      }
+
+      const billPromises = eventIds.map(async (eventId: string) => {
+        const eventDoc = await firestore().collection('events').doc(eventId).get();
+        const eventData = eventDoc.data();
+        const billIds = eventData?.billIds || [];
+
+        if (billIds.length === 0) return [];
+
+        const billsSnapshot = await firestore()
+          .collection('bills')
+          .where(firestore.FieldPath.documentId(), 'in', billIds)
+          .get();
+
+        return billsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          billDateTime: doc.data().billDateTime?.toDate() || new Date()
+        }));
+      });
+
+      const billArrays = await Promise.all(billPromises);
+      const bills = billArrays.flat();
+
+      if (bills.length === 0) {
+        setSettlementData(null);
+        return;
+      }
+
+      const balances = calculateUserBalances(bills, trip.members);
+      const settlements = optimiseSettlements(balances);
+
+      const totalExpensesCents = bills.reduce((sum: number, bill: any) =>
+        sum + bill.billItems.reduce((itemSum: number, item: any) =>
+          itemSum + Math.round(item.billItemPrice * 100), 0), 0
+      );
+
+      setSettlementData({
+        balances,
+        settlements,
+        totalExpenses: totalExpensesCents,
+        summary: {
+          totalTransactions: settlements.length,
+        }
+      });
+    } catch (error) {
+      console.error('Error loading settlement data:', error);
+      setSettlementData(null);
+    } finally {
+      setLoadingSettlement(false);
+    }
+  };
+
   const deleteTrip = async () => {
     if (!trip) return;
+
     setIsManageTripModalVisible(false);
+
     Alert.alert(
       'Delete Trip',
       `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
@@ -137,16 +338,15 @@ export default function ConcludedTripInfoScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Delete all events associated with the trip
               if (trip.eventIds && trip.eventIds.length > 0) {
                 const eventPromises = trip.eventIds.map(eventId =>
                   firestore().collection('events').doc(eventId).delete()
                 );
                 await Promise.all(eventPromises);
               }
-              // Now delete the trip itself
+
               await firestore().collection('trips').doc(trip.id).delete();
-              router.push('/Home'); // Back to Home after deleting the trip
+              router.push('/Home');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete trip');
               console.error(error);
@@ -159,7 +359,9 @@ export default function ConcludedTripInfoScreen() {
 
   const unconcludeTrip = async () => {
     if (!trip) return;
+
     setIsManageTripModalVisible(false);
+
     Alert.alert(
       'Unconclude Trip',
       `Are you sure you want to unconclude "${trip.name}"? This will move the trip back to active trips.`,
@@ -176,7 +378,7 @@ export default function ConcludedTripInfoScreen() {
               router.replace({
                 pathname: '/trip-view',
                 params: { tripId: trip.id },
-              }); // Navigate to active trip view
+              });
             } catch (error) {
               Alert.alert(
                 'Error',
@@ -238,7 +440,11 @@ export default function ConcludedTripInfoScreen() {
   if (isLoading) {
     return (
       <>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+          }}
+        />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -258,7 +464,11 @@ export default function ConcludedTripInfoScreen() {
   if (!trip || !hasAccess) {
     return (
       <>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen
+          options={{
+            headerShown: false,
+          }}
+        />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -268,9 +478,7 @@ export default function ConcludedTripInfoScreen() {
             <View style={styles.placeholder} />
           </View>
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              Trip not found or you don't have access.
-            </Text>
+            <Text style={styles.errorText}>Trip not found or you don't have access.</Text>
           </View>
         </SafeAreaView>
       </>
@@ -282,7 +490,11 @@ export default function ConcludedTripInfoScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -293,39 +505,30 @@ export default function ConcludedTripInfoScreen() {
             <Text style={styles.manageTripButtonText}>Manage</Text>
           </TouchableOpacity>
         </View>
+
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
             <Text style={styles.tripTitle}>{trip.name}</Text>
 
+            {/* Description Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <TouchableOpacity
-                style={styles.descriptionCard}
-                onPress={navigateToDescription}
-              >
-                <Text
-                  style={styles.descriptionText}
-                  numberOfLines={4}
-                  ellipsizeMode="tail"
-                >
+              <TouchableOpacity style={styles.descriptionCard} onPress={navigateToDescription}>
+                <Text style={styles.descriptionText}>
                   {trip.tripDescription || 'No description provided. Tap to view.'}
                 </Text>
-                <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Duration Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Duration</Text>
               <View style={styles.dateRow}>
                 <View style={styles.dateButton}>
-                  <Text style={styles.dateButtonText}>
-                    Start: {formatDate(trip.startDate)}
-                  </Text>
+                  <Text style={styles.dateButtonText}>Start: {formatDate(trip.startDate)}</Text>
                 </View>
                 <View style={styles.dateButton}>
-                  <Text style={styles.dateButtonText}>
-                    End: {formatDate(trip.endDate)}
-                  </Text>
+                  <Text style={styles.dateButtonText}>End: {formatDate(trip.endDate)}</Text>
                 </View>
               </View>
               <View style={styles.durationSubtextContainer}>
@@ -334,15 +537,13 @@ export default function ConcludedTripInfoScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Members Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members</Text>
-              <TouchableOpacity
-                style={styles.membersCard}
-                onPress={navigateToMembers}
-              >
+              <TouchableOpacity style={styles.membersCard} onPress={navigateToMembers}>
                 <Text style={styles.membersCount}>
-                  {trip.members.length} member
-                  {trip.members.length !== 1 ? 's' : ''}
+                  {trip.members.length} member{trip.members.length !== 1 ? 's' : ''}
                 </Text>
                 <View style={styles.membersList}>
                   {trip.members.slice(0, 2).map((member, index) => (
@@ -361,6 +562,7 @@ export default function ConcludedTripInfoScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Ledgers Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ledgers</Text>
               <View style={styles.ledgerCard}>
@@ -374,43 +576,129 @@ export default function ConcludedTripInfoScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Settlement Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Bill Settlement</Text>
+              <View style={styles.settlementCard}>
+                {loadingSettlement ? (
+                  <Text style={styles.settlementLoading}>Loading settlement data...</Text>
+                ) : settlementData ? (
+                  <>
+                    <View style={styles.settlementSummary}>
+                      <View style={styles.settlementRow}>
+                        <Text style={styles.settlementLabel}>Total Expenses:</Text>
+                        <Text style={styles.settlementValue}>
+                          ${(settlementData.totalExpenses / 100).toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.settlementRow}>
+                        <Text style={styles.settlementLabel}>Settlements Required:</Text>
+                        <Text style={styles.settlementValue}>
+                          {settlementData.settlements.length}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {settlementData.settlements.length > 0 && (
+                      <View style={styles.settlementInstructions}>
+                        <Text style={styles.settlementSubtitle}>Settlement Instructions:</Text>
+                        {(() => {
+                          const { displayed, moreCount } = getSmartTruncatedSettlements(
+                            settlementData.settlements,
+                            currentUser?.id || ''
+                          );
+                          return (
+                            <>
+                              {displayed.map(settlement => {
+                                const fromUser = settlementData.balances.find(
+                                  b => b.userId === settlement.from
+                                )?.userName || 'Unknown';
+                                const toUser = settlementData.balances.find(
+                                  b => b.userId === settlement.to
+                                )?.userName || 'Unknown';
+                                const isUserInvolved = settlement.from === currentUser?.id ||
+                                  settlement.to === currentUser?.id;
+
+                                return (
+                                  <Text
+                                    key={settlement.id}
+                                    style={[
+                                      styles.settlementInstruction,
+                                      isUserInvolved && styles.userInvolvedSettlement
+                                    ]}
+                                  >
+                                    • {fromUser} pays {toUser}: ${(settlement.amount / 100).toFixed(2)}
+                                  </Text>
+                                );
+                              })}
+                              {moreCount > 0 && (
+                                <Text style={styles.settlementMore}>
+                                  +{moreCount} more settlement{moreCount !== 1 ? 's' : ''}
+                                </Text>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.viewSettlementButton}
+                      onPress={() => setShowSettlement(true)}
+                    >
+                      <Text style={styles.viewSettlementButtonText}>
+                        View Full Settlement Report
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text style={styles.noSettlementText}>
+                    No bills found for settlement calculation
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
         </ScrollView>
 
+        {/* Manage Trip Modal */}
         <Modal
           visible={isManageTripModalVisible}
           transparent={true}
           animationType="slide"
           onRequestClose={() => setIsManageTripModalVisible(false)}
         >
-          <View style={styles.manageTripOverlay}>
+          <View style={styles.modalOverlay}>
             <View style={styles.manageTripContainer}>
               <View style={styles.manageTripHeader}>
-                <TouchableOpacity
-                  onPress={() => setIsManageTripModalVisible(false)}
-                >
+                <TouchableOpacity onPress={() => setIsManageTripModalVisible(false)}>
                   <Text style={styles.manageTripCancel}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={styles.manageTripTitle}>Manage Trip</Text>
                 <View style={styles.placeholder} />
               </View>
+
               <View style={styles.manageTripButtons}>
-                <TouchableOpacity
-                  style={styles.unconcludeButton}
-                  onPress={unconcludeTrip}
-                >
-                  <Text style={styles.unconcludeButtonText}>Not Concluded</Text>
+                <TouchableOpacity style={styles.unconcludeButton} onPress={unconcludeTrip}>
+                  <Text style={styles.unconcludeButtonText}>Unconclude Trip</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={deleteTrip}
-                >
+
+                <TouchableOpacity style={styles.deleteButton} onPress={deleteTrip}>
                   <Text style={styles.deleteButtonText}>Delete Trip</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
+
+        {/* Settlement Modal */}
+        <BillSettlementManager
+          visible={showSettlement}
+          tripId={tripId as string}
+          tripName={trip.name}
+          onClose={() => setShowSettlement(false)}
+        />
       </SafeAreaView>
     </>
   );
@@ -466,12 +754,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-    marginBottom: 12,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 12,
   },
   descriptionCard: {
@@ -560,141 +842,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#aaa',
   },
-  eventsSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 0,
-  },
-  eventsButton: {
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  eventsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  unconcludeButton: {
-    backgroundColor: '#34C759', // A green color
-    borderWidth: 1,
-    borderColor: '#34C759',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  unconcludeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  deleteSection: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-  },
-  deleteButton: {
-    backgroundColor: '#2c1a1a',
-    borderWidth: 1,
-    borderColor: '#4d2c2c',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ff453a',
-  },
-  datePickerOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  datePickerContainer: {
-    backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-  },
-  datePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  datePickerCancel: {
-    fontSize: 16,
-    color: '#0a84ff',
-  },
-  datePickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  datePickerDone: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    height: 200,
-    backgroundColor: '#1e1e1e',
-  },
-  picker: {
-    flex: 1,
-    color: '#fff',
-    backgroundColor: '#1e1e1e',
-  },
-  manageTripButtonText: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
-  },
-  manageTripOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  manageTripContainer: {
-    backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-    paddingBottom: 20,
-  },
-  manageTripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  manageTripCancel: {
-    fontSize: 16,
-    color: '#0a84ff',
-  },
-  manageTripTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  manageTripButtons: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
   ledgerCard: {
     backgroundColor: '#1e1e1e',
     padding: 16,
@@ -719,5 +866,171 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0a84ff',
     fontWeight: '600',
+  },
+  manageTripButtonText: {
+    fontSize: 16,
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  manageTripContainer: {
+    backgroundColor: '#1e1e1e',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+    paddingBottom: 12,
+    maxHeight: '50%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  manageTripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    backgroundColor: '#1e1e1e',
+  },
+  manageTripCancel: {
+    fontSize: 15,
+    color: '#0a84ff',
+    fontWeight: '500',
+  },
+  manageTripTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.3,
+  },
+  manageTripButtons: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  unconcludeButton: {
+    backgroundColor: '#34C759',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  unconcludeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    borderWidth: 1,
+    borderColor: '#ff453a',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  deleteButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ff453a',
+    letterSpacing: 0.2,
+  },
+  settlementCard: {
+    backgroundColor: '#1e1e1e',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  settlementLoading: {
+    fontSize: 14,
+    color: '#aaa',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  settlementSummary: {
+    marginBottom: 16,
+  },
+  settlementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  settlementLabel: {
+    fontSize: 14,
+    color: '#aaa',
+  },
+  settlementValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  settlementInstructions: {
+    marginBottom: 16,
+  },
+  settlementSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  settlementInstruction: {
+    fontSize: 13,
+    color: '#aaa',
+    marginBottom: 4,
+  },
+  userInvolvedSettlement: {
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
+  settlementMore: {
+    fontSize: 13,
+    color: '#777',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  viewSettlementButton: {
+    backgroundColor: '#0a84ff',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#0a84ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  viewSettlementButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  noSettlementText: {
+    fontSize: 14,
+    color: '#aaa',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });
