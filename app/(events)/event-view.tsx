@@ -1,9 +1,12 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
+import axios from 'axios'; // Import Axios for HTTP requests
+import * as ImagePicker from 'expo-image-picker'; // Import Expo Image Picker
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -17,6 +20,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// IMPORTANT: Replace with your backend server URL
+const BACKEND_URL = 'http://localhost:3000'; // Or your machine's IP if testing on a real device
 
 interface TripMember {
   id: string;
@@ -64,6 +70,12 @@ interface MonthOption {
   value: number;
 }
 
+// Interface for AI parsed item
+interface AIParsedItem {
+  name: string;
+  price: number | string;
+}
+
 export default function EventViewScreen() {
   const router = useRouter();
   const { eventId, tripId } = useLocalSearchParams();
@@ -98,6 +110,10 @@ export default function EventViewScreen() {
   const [newWhoPaid, setNewWhoPaid] = useState<
     { member: TripMember | null; amount: string; search: string; results: TripMember[] }[]
   >([]);
+
+  // State for receipt scanning
+  const [isScanningReceipt, setIsScanningReceipt] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -615,6 +631,125 @@ export default function EventViewScreen() {
     });
   };
 
+  // --- RECEIPT SCANNING FUNCTIONS ---
+
+  const processImageForChatGPT = async (imageUri: string) => {
+    setIsScanningReceipt(true);
+    setScanError(null);
+    try {
+      const response = await axios.post(`${BACKEND_URL}/process-receipt`, {
+        imageData: imageUri, // Already base64 with data URL header
+      });
+
+      const { items } = response.data; // Expecting { items: [{ name, price }] }
+
+      if (items && Array.isArray(items)) {
+        const parsedItems: NewBillItemInput[] = items.map((item: AIParsedItem) => ({
+          name: item.name || '',
+          price: typeof item.price === 'number' ? item.price.toFixed(2) : String(item.price || ''),
+          selectedUsers: eventMembers.length > 0 && currentUser ? [currentUser] : [], // Default to current user if available
+          userSearchQuery: '',
+          searchResults: [],
+        }));
+        setNewBillItems(parsedItems);
+
+        // Try to infer bill name from first few items
+        if (items.length > 0 && !newBillName.trim()) {
+            const billNames = items.slice(0, 3).map((item: AIParsedItem) => item.name);
+            setNewBillName(`Receipt (${billNames.join(', ')})`);
+        }
+        setNewBillDateTime(new Date()); // Set bill date to now
+
+        // Set who paid to current user by default with total amount
+        const totalAmount = items.reduce((sum: number, item: AIParsedItem) => {
+            const price = typeof item.price === 'number' ? item.price : parseFloat(String(item.price));
+            return sum + (isNaN(price) ? 0 : price);
+        }, 0);
+
+        if (currentUser && totalAmount > 0) {
+            setNewWhoPaid([
+                {
+                    member: currentUser,
+                    amount: totalAmount.toFixed(2),
+                    search: currentUser.displayName, // Pre-fill search with displayName
+                    results: [],
+                },
+            ]);
+        } else {
+            setNewWhoPaid([]); // Clear if no current user or no items
+        }
+
+        Alert.alert('Scan Complete', 'Receipt items populated!');
+      } else {
+        setScanError('AI did not return expected item format.');
+        Alert.alert('Scan Failed', 'Could not parse receipt from AI. Please try again or enter manually.');
+      }
+    } catch (err: any) {
+      console.error('Error scanning receipt:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.error || err.message;
+      setScanError(`Scan failed: ${errorMessage}`);
+      Alert.alert('Scan Failed', `Failed to scan receipt: ${errorMessage}`);
+    } finally {
+      setIsScanningReceipt(false);
+    }
+  };
+
+  const handleScanReceipt = async (method: 'camera' | 'gallery') => {
+    let result;
+    setScanError(null);
+
+    // Request permissions first
+    if (method === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please grant camera access to scan receipts.');
+        return;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please grant photo library access to scan receipts.');
+        return;
+      }
+    }
+
+    try {
+      if (method === 'camera') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          base64: true,
+          allowsEditing: true, // Allow user to crop/edit for better OCR
+          aspect: [4, 3],
+          quality: 0.7, // Reduce quality for faster upload, balance with OCR quality
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          base64: true,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          // Construct data URL for OpenAI Vision API
+          const base64Data = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
+          processImageForChatGPT(base64Data);
+        } else {
+          setScanError('Could not get base64 data from image.');
+        }
+      }
+    } catch (e: any) {
+      console.error('Image picker error:', e);
+      setScanError(`Image picker failed: ${e.message}`);
+    }
+  };
+
+  // --- END RECEIPT SCANNING FUNCTIONS ---
+
   if (isLoading) {
     return (
       <>
@@ -626,8 +761,9 @@ export default function EventViewScreen() {
             </TouchableOpacity>
             <View style={styles.placeholder} />
           </View>
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Loading event...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0a84ff" />
+            <Text style={styles.loadingText}>Loading event...</Text>
           </View>
         </SafeAreaView>
       </>
@@ -769,6 +905,7 @@ export default function EventViewScreen() {
               setNewBillDateTime(new Date());
               setNewBillItems([]);
               setNewWhoPaid([]);
+              setScanError(null); // Clear scan errors on modal open
             }}
           >
             <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
@@ -992,6 +1129,34 @@ export default function EventViewScreen() {
               style={{ flex: 1 }}
             >
               <ScrollView style={styles.modalContent}>
+                {/* Scan Receipt Section */}
+                <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Scan Receipt (Beta)</Text>
+                    <View style={styles.scanButtonsContainer}>
+                        <TouchableOpacity
+                            style={styles.scanButton}
+                            onPress={() => handleScanReceipt('camera')}
+                            disabled={isScanningReceipt}
+                        >
+                            <Text style={styles.scanButtonText}>Take Photo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.scanButton}
+                            onPress={() => handleScanReceipt('gallery')}
+                            disabled={isScanningReceipt}
+                        >
+                            <Text style={styles.scanButtonText}>From Gallery</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {isScanningReceipt && (
+                        <View style={styles.loadingScanContainer}>
+                            <ActivityIndicator size="small" color="#0a84ff" />
+                            <Text style={styles.loadingScanText}>Scanning...</Text>
+                        </View>
+                    )}
+                    {scanError && <Text style={styles.scanErrorText}>{scanError}</Text>}
+                </View>
+
                 <View style={styles.inputSection}>
                   <Text style={styles.inputLabel}>Bill Name</Text>
                   <TextInput
@@ -1478,6 +1643,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#aaa',
+    marginTop: 10,
+  },
   errorText: {
     fontSize: 18,
     color: '#aaa',
@@ -1805,5 +1980,44 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 20,
     gap: 12,
+  },
+  scanButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
+  },
+  scanButton: {
+    backgroundColor: '#4a90e2',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  scanButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingScanContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 8,
+  },
+  loadingScanText: {
+    color: '#fff',
+    marginLeft: 10,
+    fontSize: 14,
+  },
+  scanErrorText: {
+    color: '#ff453a',
+    fontSize: 14,
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
