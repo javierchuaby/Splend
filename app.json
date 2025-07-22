@@ -14,7 +14,10 @@
       "bundleIdentifier": "com.galaxies.splendauth",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "NSCalendarsUsageDescription": "This app needs access to your calendar to manage trip events"
+        "NSCalendarsUsageDescription": "This app needs access to your calendar to manage trip events",
+        "NSCameraUsageDescription": "Splend needs access to your camera to take pictures of receipts.",
+        "NSPhotoLibraryUsageDescription": "Splend needs access to your photo library to select receipt images.",
+        "NSPhotoLibraryAddUsageDescription": "Splend needs to save photos to your library."
       }
     },
     "android": {
