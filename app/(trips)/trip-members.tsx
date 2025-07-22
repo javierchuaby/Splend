@@ -278,12 +278,12 @@ export default function TripMembersScreen() {
           onPress: async () => {
             try {
               const memberObjectInFirestore = {
-                uid: memberToRemove.id,
-                username: memberToRemove.username,
-                displayName: memberToRemove.displayName,
-                billIds: memberToRemove.billIds,
-                totalSpent: memberToRemove.totalSpent,
-                totalPaid: memberToRemove.totalPaid,
+                uid: memberToRemove.id || "",
+                username: memberToRemove.username || "",
+                displayName: memberToRemove.displayName || "",
+                billIds: memberToRemove.billIds || [],
+                totalSpent: memberToRemove.totalSpent || 0,
+                totalPaid: memberToRemove.totalPaid || 0,
               };
 
               await firestore()

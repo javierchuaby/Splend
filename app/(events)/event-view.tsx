@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 
 // IMPORTANT: Replace with your backend server URL
-const BACKEND_URL = 'http://localhost:3000'; // Or your machine's IP if testing on a real device
+const BACKEND_URL = 'http://10.249.225.107:3000'; // Or your machine's IP if testing on a real device
 
 interface TripMember {
   id: string;
