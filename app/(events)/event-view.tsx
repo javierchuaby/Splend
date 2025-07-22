@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'; // NEW: Import AsyncStorage
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
@@ -22,7 +23,7 @@ import {
 } from 'react-native';
 
 // IMPORTANT: Replace with your backend server URL
-const BACKEND_URL = 'http://172.20.10.13:3000'; // Or your machine's IP if testing on a real device
+// const BACKEND_URL = 'http://172.20.10.13:3000'; // Or your machine's IP if testing on a real device
 
 interface TripMember {
   id: string;
@@ -76,6 +77,8 @@ interface AIParsedItem {
   price: number | string;
 }
 
+const STORAGE_KEY_BACKEND_URL = 'backend_url'; // NEW: AsyncStorage key
+
 export default function EventViewScreen() {
   const router = useRouter();
   const { eventId, tripId } = useLocalSearchParams();
@@ -114,6 +117,30 @@ export default function EventViewScreen() {
   // State for receipt scanning
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  // NEW: State for dynamic backend URL and its input modal
+  const [backendUrl, setBackendUrl] = useState<string>('http://172.20.10.13:3000'); // Default or initial value
+  const [isIpInputModalVisible, setIsIpInputModalVisible] = useState(false);
+  const [tempBackendUrl, setTempBackendUrl] = useState(backendUrl); // For input field
+
+  // NEW: Effect to load backend URL from AsyncStorage
+  useEffect(() => {
+    const loadBackendUrl = async () => {
+      try {
+        const storedUrl = await AsyncStorage.getItem(STORAGE_KEY_BACKEND_URL);
+        if (storedUrl) {
+          setBackendUrl(storedUrl);
+          setTempBackendUrl(storedUrl); // Keep temp in sync
+          console.log('Loaded backend URL from storage:', storedUrl);
+        } else {
+            console.log('No backend URL found in storage, using default:', backendUrl);
+        }
+      } catch (e) {
+        console.error('Failed to load backend URL from storage:', e);
+      }
+    };
+    loadBackendUrl();
+  }, []);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -637,7 +664,8 @@ export default function EventViewScreen() {
     setIsScanningReceipt(true);
     setScanError(null);
     try {
-      const response = await axios.post(`${BACKEND_URL}/process-receipt`, {
+      // NEW: Use the dynamic backendUrl
+      const response = await axios.post(`${backendUrl}/process-receipt`, {
         imageData: imageUri, // Already base64 with data URL header
       });
 
@@ -749,6 +777,29 @@ export default function EventViewScreen() {
   };
 
   // --- END RECEIPT SCANNING FUNCTIONS ---
+
+  // NEW: Functions for backend URL management
+  const handleSaveBackendUrl = async () => {
+    if (!tempBackendUrl.trim()) {
+      Alert.alert('Invalid URL', 'Please enter a valid URL.');
+      return;
+    }
+    setBackendUrl(tempBackendUrl);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_BACKEND_URL, tempBackendUrl);
+      Alert.alert('Success', 'Backend URL updated and saved.');
+    } catch (e) {
+      console.error('Failed to save backend URL:', e);
+      Alert.alert('Error', 'Failed to save backend URL.');
+    } finally {
+      setIsIpInputModalVisible(false);
+    }
+  };
+
+  const handleCancelBackendUrl = () => {
+    setTempBackendUrl(backendUrl); // Revert to current backendUrl
+    setIsIpInputModalVisible(false);
+  };
 
   if (isLoading) {
     return (
@@ -909,6 +960,14 @@ export default function EventViewScreen() {
             }}
           >
             <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
+          </TouchableOpacity>
+
+          {/* NEW: Change Backend URL Button */}
+          <TouchableOpacity
+            style={[styles.createBillButton, { backgroundColor: '#333', marginTop: 10 }]} // Styling adjustment
+            onPress={() => setIsIpInputModalVisible(true)}
+          >
+            <Text style={styles.createBillButtonText}>Change Backend URL</Text>
           </TouchableOpacity>
         </View>
 
@@ -1498,6 +1557,48 @@ export default function EventViewScreen() {
             </Modal>
           </SafeAreaView>
         </Modal>
+
+        {/* NEW: Modal for Backend URL Input */}
+        <Modal
+          visible={isIpInputModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setIsIpInputModalVisible(false)}
+        >
+          <View style={styles.ipInputOverlay}>
+            <View style={styles.ipInputContainer}>
+              <View style={styles.ipInputHeader}>
+                <TouchableOpacity onPress={handleCancelBackendUrl}>
+                  <Text style={styles.ipInputCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.ipInputTitle}>Change Backend URL</Text>
+                <TouchableOpacity onPress={handleSaveBackendUrl}>
+                  <Text style={styles.ipInputSave}>Save</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.ipInputContent}>
+                <Text style={styles.inputLabel}>New Backend URL (e.g., http://192.168.1.100:3000)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={tempBackendUrl}
+                  onChangeText={setTempBackendUrl}
+                  placeholder="Enter backend server URL"
+                  placeholderTextColor="#777"
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardAppearance="dark"
+                />
+                <Text style={styles.warningText}>
+                    Warning: Changing this URL is for development/testing only and can break functionality if incorrect.
+                </Text>
+                <Text style={styles.currentUrlText}>
+                    Current URL: {backendUrl}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </>
   );
@@ -2020,4 +2121,57 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
+  // NEW: Styles for IP Input Modal
+  ipInputOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  ipInputContainer: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  ipInputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  ipInputCancel: {
+    fontSize: 16,
+    color: '#ff453a',
+  },
+  ipInputTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  ipInputSave: {
+    fontSize: 16,
+    color: '#0a84ff',
+    fontWeight: '600',
+  },
+  ipInputContent: {
+    padding: 20,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#ffcc00',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  currentUrlText: {
+    fontSize: 13,
+    color: '#aaa',
+    marginTop: 15,
+    textAlign: 'center',
+    fontWeight: '500',
+  }
 });
