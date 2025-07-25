@@ -37,7 +37,7 @@ export function useProfileScreenLogic() {
     // Listener for real-time updates if needed (optional)
     const unsubscribe = firestore().collection('users').doc(auth().currentUser?.uid)
       .onSnapshot(docSnapshot => {
-        if (docSnapshot.exists) {
+        if (docSnapshot.exists()) {
           const userData = docSnapshot.data();
           setCurrentUser({
             displayName: userData?.displayName,

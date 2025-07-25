@@ -1,9 +1,11 @@
 import { StyleSheet } from 'react-native';
+import { AppColors } from './AppColors';
+import { AppTypography } from './AppTypography';
+import { GlobalStyles } from './GlobalStyles';
 
 export const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
+    ...GlobalStyles.container,
   },
   greetingContainer: {
     flex: 1,
@@ -11,14 +13,14 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   greetingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#aaa',
+    fontSize: AppTypography.fontSizeLarge,
+    fontWeight: AppTypography.fontWeightSemiBold,
+    color: AppColors.textSecondary,
   },
   displayNameText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: AppTypography.fontSizePageTitle,
+    fontWeight: AppTypography.fontWeightBold,
+    color: AppColors.textPrimary,
     marginTop: 8,
   },
   settingsContainer: {
@@ -27,21 +29,21 @@ export const styles = StyleSheet.create({
     marginTop: 20,
   },
   settingsButton: {
-    backgroundColor: '#2c2c2c',
+    backgroundColor: AppColors.backgroundSecondary,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: AppColors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   settingsButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
+    fontSize: AppTypography.fontSizeRegular,
+    fontWeight: AppTypography.fontWeightMedium,
+    color: AppColors.textPrimary,
     textAlign: 'center',
   },
   signOutContainer: {
@@ -49,48 +51,36 @@ export const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   signOutButton: {
-    backgroundColor: '#ff453a',
+    backgroundColor: AppColors.redError,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: AppColors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   signOutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: AppTypography.fontSizeRegular,
+    fontWeight: AppTypography.fontWeightSemiBold,
+    color: AppColors.textPrimary,
   },
   modalContainer: {
-    flex: 1,
-    backgroundColor: '#121212',
+    ...GlobalStyles.modalContainer,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    ...GlobalStyles.modalHeader,
   },
   cancelButton: {
-    fontSize: 16,
-    color: '#0a84ff',
+    ...GlobalStyles.cancelButton,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+    ...GlobalStyles.modalTitle,
   },
   saveButton: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
+    ...GlobalStyles.saveButton,
   },
   modalContent: {
     flex: 1,
@@ -98,12 +88,6 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#1e1e1e',
-    color: '#fff',
+    ...GlobalStyles.textInput,
   },
 });

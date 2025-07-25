@@ -61,7 +61,7 @@ export function useTripViewLogic(tripId: string) {
       .doc(tripId)
       .onSnapshot(
         async (doc) => {
-          if (doc.exists) {
+          if (doc.exists()) {
             const data = doc.data();
             // Fetch actual user data for members
             const firestoreMembers: { uid: string }[] = data?.members || [];
@@ -72,7 +72,7 @@ export function useTripViewLogic(tripId: string) {
                 .collection('users')
                 .doc(memberRef.uid)
                 .get();
-              if (userDoc.exists) {
+              if (userDoc.exists()) {
                 const userData = userDoc.data();
                 resolvedMembers.push({
                   id: memberRef.uid,

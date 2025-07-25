@@ -1,52 +1,48 @@
 import { StyleSheet } from 'react-native';
+import { AppColors } from './AppColors';
+import { AppTypography } from './AppTypography';
+import { GlobalStyles } from './GlobalStyles';
 
 export const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
+    ...GlobalStyles.container,
   },
-
   pageTitleContainer: {
     paddingTop: 60,
     paddingBottom: 40,
     alignItems: 'center',
   },
-
   pageTitle: {
-    fontSize: 38,
-    fontWeight: '800',
-    color: '#4c6ef5',
-    letterSpacing: -1,
+    fontSize: AppTypography.fontSizePageTitle,
+    fontWeight: AppTypography.fontWeightExtraBold,
+    color: AppColors.primaryBlue,
+    letterSpacing: AppTypography.letterSpacingTight,
   },
-
   subtitle: {
-    fontSize: 18,
-    color: '#a0a0ab',
+    fontSize: AppTypography.fontSizeLarge,
+    color: AppColors.textSecondary,
     marginTop: 8,
-    fontWeight: '400',
+    fontWeight: AppTypography.fontWeightRegular,
   },
-
   formContainer: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-
   inputContainer: {
     marginBottom: 32,
   },
-
   input: {
     height: 56,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: AppColors.backgroundPrimary,
     borderRadius: 16,
     paddingHorizontal: 20,
     marginBottom: 16,
-    fontSize: 16,
-    color: '#ffffff',
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textPrimary,
     borderWidth: 1,
-    borderColor: '#2a2a3e',
-    shadowColor: '#000',
+    borderColor: AppColors.borderSecondary,
+    shadowColor: AppColors.shadowColor,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -55,17 +51,16 @@ export const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-
   usernameInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 56,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: AppColors.backgroundPrimary,
     borderRadius: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2a2a3e',
-    shadowColor: '#000',
+    borderColor: AppColors.borderSecondary,
+    shadowColor: AppColors.shadowColor,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -75,8 +70,8 @@ export const styles = StyleSheet.create({
     elevation: 4,
   },
   atSymbol: {
-    fontSize: 16,
-    color: '#8e8e93',
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textPlaceholder,
     paddingLeft: 20,
   },
   usernameInput: {
@@ -87,37 +82,21 @@ export const styles = StyleSheet.create({
     borderWidth: 0,
     paddingLeft: 5,
     marginBottom: 0,
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textPrimary,
   },
-
   buttonContainer: {
     gap: 12,
   },
-
   button: {
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    ...GlobalStyles.baseButton,
   },
-
   createAccountButton: {
-    backgroundColor: '#4c6ef5',
+    backgroundColor: AppColors.primaryBlue,
   },
-
   buttonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    ...GlobalStyles.baseButtonText,
   },
-
   loader: {
     marginVertical: 32,
   },
@@ -126,8 +105,8 @@ export const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   goBackText: {
-    fontSize: 16,
-    color: '#a0a0ab',
-    fontWeight: '500',
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textSecondary,
+    fontWeight: AppTypography.fontWeightMedium,
   },
 });

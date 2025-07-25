@@ -1,9 +1,11 @@
 import { StyleSheet } from 'react-native';
+import { AppColors } from './AppColors';
+import { AppTypography } from './AppTypography';
+import { GlobalStyles } from './GlobalStyles';
 
 export const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
+    ...GlobalStyles.container,
   },
   pageTitleContainer: {
     paddingTop: 60,
@@ -11,16 +13,16 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageTitle: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: '#4c6ef5',
-    letterSpacing: -1,
+    fontSize: AppTypography.fontSizePageTitle,
+    fontWeight: AppTypography.fontWeightExtraBold,
+    color: AppColors.primaryBlue,
+    letterSpacing: AppTypography.letterSpacingTight,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#a0a0ab',
+    fontSize: AppTypography.fontSizeLarge,
+    color: AppColors.textSecondary,
     marginTop: 8,
-    fontWeight: '400',
+    fontWeight: AppTypography.fontWeightRegular,
   },
   formContainer: {
     flex: 1,
@@ -32,15 +34,15 @@ export const styles = StyleSheet.create({
   },
   input: {
     height: 56,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: AppColors.backgroundPrimary,
     borderRadius: 16,
     paddingHorizontal: 20,
     marginBottom: 16,
-    fontSize: 16,
-    color: '#ffffff',
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textPrimary,
     borderWidth: 1,
-    borderColor: '#2a2a3e',
-    shadowColor: '#000',
+    borderColor: AppColors.borderSecondary,
+    shadowColor: AppColors.shadowColor,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -53,35 +55,22 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    ...GlobalStyles.baseButton,
   },
   signInButton: {
-    backgroundColor: '#4c6ef5',
+    backgroundColor: AppColors.primaryBlue,
   },
   signUpTextButton: {
     marginTop: 10,
     alignSelf: 'center',
   },
   signUpText: {
-    fontSize: 16,
-    color: '#a0a0ab',
-    fontWeight: '500',
+    fontSize: AppTypography.fontSizeRegular,
+    color: AppColors.textSecondary,
+    fontWeight: AppTypography.fontWeightMedium,
   },
   buttonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    ...GlobalStyles.baseButtonText,
   },
   loader: {
     marginVertical: 32,

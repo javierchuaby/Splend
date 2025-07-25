@@ -1,17 +1,15 @@
 import React from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Modal,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TripMember } from '../types/TripTypes';
 import { styles } from '../styles/TripViewScreenStyles';
+import { TripMember } from '../types/TripTypes';
 
 interface NewEventModalProps {
   isModalVisible: boolean;
@@ -179,12 +177,14 @@ export function NewEventModal({
                       </Text>
                     </Text>
                     {currentUser?.id !== member.id && (
-                      <TouchableOpacity onPress={() => removeEventMember(member.id)}>
+                      <TouchableOpacity
+                        onPress={() => removeEventMember(member.id)}
+                      >
                         <Text style={styles.removeMemberButton}>remove</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                )}
+                ))}
               </View>
             )}
           </View>
