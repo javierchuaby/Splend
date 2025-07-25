@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { styles } from '../styles/SignInStyles';
+import { styles } from '../../styles/SignInStyles';
 
 export function PageTitle() {
   return (

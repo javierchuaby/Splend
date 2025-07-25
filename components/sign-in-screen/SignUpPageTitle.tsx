@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { styles } from '../styles/SignUpStyles';
+import { styles } from '../../styles/SignUpStyles';
 
 export function SignUpPageTitle() {
   return (
