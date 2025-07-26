@@ -134,10 +134,11 @@ export default function BillViewScreen() {
   };
 
   const handleGoBack = () => {
-    router.replace({
-      pathname: '/event-view',
-      params: { eventId: eventId, tripId: tripId },
-    });
+    // router.replace({
+    //   pathname: '/event-view',
+    //   params: { eventId: eventId, tripId: tripId },
+    // });
+    router.back();
   };
 
   if (isLoading) {

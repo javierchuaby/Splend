@@ -625,10 +625,11 @@ export default function EventViewScreen() {
   );
 
   const handleEventViewBack = () => {
-    router.push({
-      pathname: '/trip-view',
-      params: { tripId: tripId },
-    });
+    // router.replace({
+    //   pathname: '/trip-view',
+    //   params: { tripId: tripId },
+    // });
+    router.back();
   };
 
   // --- RECEIPT SCANNING FUNCTIONS ---

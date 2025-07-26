@@ -175,7 +175,7 @@ export default function ConcludedTripViewScreen() {
 
   const navigateToEventView = (event: Event) => {
     router.push({
-      pathname: '/event-view',
+      pathname: '../(events)/event-view',
       params: { eventId: event.id, tripId: tripId },
     });
   };
@@ -255,7 +255,7 @@ export default function ConcludedTripViewScreen() {
           <TouchableOpacity
             onPress={() =>
               router.push({
-                pathname: '/concluded-trip-info',
+                pathname: './concluded-trip-info',
                 params: { tripId: trip?.id },
               })
             }

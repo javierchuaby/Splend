@@ -33,7 +33,7 @@ export default function ConcludedTripDescriptionScreen() {
           // Check if the trip is actually concluded
           if (!data?.isConcluded) {
             router.replace({
-              pathname: '/trip-description',
+              pathname: '../(trips)/trip-description',
               params: { tripId: tripId },
             });
             return;

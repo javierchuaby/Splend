@@ -412,14 +412,14 @@ export default function ConcludedTripInfoScreen() {
 
   const navigateToMembers = () => {
     router.push({
-      pathname: '/concluded-trip-members',
+      pathname: './concluded-trip-members',
       params: { tripId: trip?.id },
     });
   };
 
   const navigateToDescription = () => {
     router.push({
-      pathname: '/concluded-trip-description',
+      pathname: './concluded-trip-description',
       params: { tripId: trip?.id },
     });
   };

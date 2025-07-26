@@ -469,7 +469,7 @@ export default function TripViewScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/Home')}>
+          <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.backButton}>←</Text>
           </TouchableOpacity>
           <TouchableOpacity
