@@ -648,7 +648,7 @@ export default function EventViewScreen() {
         const parsedItems: NewBillItemInput[] = items.map((item: AIParsedItem) => ({
           name: item.name || '',
           price: typeof item.price === 'number' ? item.price.toFixed(2) : String(item.price || ''),
-          selectedUsers: eventMembers.length > 0 && currentUser ? [currentUser] : [], // Default to current user if available
+          selectedUsers: [],
           userSearchQuery: '',
           searchResults: [],
         }));
@@ -667,18 +667,7 @@ export default function EventViewScreen() {
             return sum + (isNaN(price) ? 0 : price);
         }, 0);
 
-        if (currentUser && totalAmount > 0) {
-            setNewWhoPaid([
-                {
-                    member: currentUser,
-                    amount: totalAmount.toFixed(2),
-                    search: currentUser.displayName, // Pre-fill search with displayName
-                    results: [],
-                },
-            ]);
-        } else {
-            setNewWhoPaid([]); // Clear if no current user or no items
-        }
+        setNewWhoPaid([]);
 
         Alert.alert('Scan Complete', 'Receipt items populated!');
       } else {
