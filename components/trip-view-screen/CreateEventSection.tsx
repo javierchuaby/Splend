@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { styles } from '../styles/TripViewScreenStyles';
+import { styles } from '../../styles/TripViewScreenStyles';
 
 interface CreateEventSectionProps {
   onCreateEventPress: () => void;

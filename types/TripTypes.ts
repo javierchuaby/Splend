@@ -33,3 +33,12 @@ export interface Event {
   memberIds: string[];
   billIds: string[];
 }
+
+export interface FirestoreTripMemberRef {
+  uid: string;
+  username: string;
+  displayName: string;
+  billIds: string[];
+  totalSpent: number;
+  totalPaid: number;
+}

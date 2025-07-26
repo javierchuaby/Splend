@@ -6,6 +6,7 @@ import { GlobalStyles } from './GlobalStyles';
 export const TripInfoScreenStyles = StyleSheet.create({
   container: {
     ...GlobalStyles.container,
+    backgroundColor: AppColors.backgroundSecondary,
   },
   header: {
     flexDirection: 'row',
@@ -15,17 +16,23 @@ export const TripInfoScreenStyles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: AppColors.backgroundSecondary,
   },
+  headerLeftContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  headerRightContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   backButton: {
     fontSize: AppTypography.fontSizeRegular,
     color: AppColors.textHyperlink,
   },
   headerTitle: {
     fontSize: AppTypography.fontSizeLarge,
-    fontWeight: AppTypography.fontWeightSemiBold,
+    fontWeight: AppTypography.fontWeightBold,
     color: AppColors.textPrimary,
-  },
-  placeholder: {
-    width: 50,
+    textAlign: 'center',
   },
   scrollContainer: {
     flex: 1,
@@ -201,49 +208,10 @@ export const TripInfoScreenStyles = StyleSheet.create({
     color: AppColors.textHyperlink,
     fontWeight: AppTypography.fontWeightSemiBold,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  manageTripContainer: {
-    backgroundColor: AppColors.backgroundCard,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
-    paddingBottom: 12,
-    maxHeight: '50%',
-    shadowColor: AppColors.shadowColor,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  manageTripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.borderPrimary,
-    backgroundColor: AppColors.backgroundCard,
-  },
-  manageTripCancel: {
-    fontSize: AppTypography.fontSizeMedium + 1,
-    color: AppColors.textHyperlink,
-    fontWeight: AppTypography.fontWeightMedium,
-  },
-  manageTripTitle: {
-    fontSize: AppTypography.fontSizeLarge - 1,
-    fontWeight: AppTypography.fontWeightSemiBold,
-    color: AppColors.textPrimary,
-    letterSpacing: 0.3,
-  },
   manageTripButtons: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    marginTop: 0,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
     gap: 10,
   },
   primaryActionButton: {
@@ -252,7 +220,7 @@ export const TripInfoScreenStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
     shadowColor: AppColors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -271,7 +239,7 @@ export const TripInfoScreenStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
     shadowColor: AppColors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -292,7 +260,7 @@ export const TripInfoScreenStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
   },
   destructiveActionButtonText: {
     fontSize: AppTypography.fontSizeMedium + 1,

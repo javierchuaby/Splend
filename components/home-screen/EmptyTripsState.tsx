@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { styles } from '../styles/HomeScreenStyles';
+import { styles } from '../../styles/HomeScreenStyles';
 
 interface EmptyStateProps {
   tripFilter: 'active' | 'concluded';

@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
-import { styles } from '../styles/TripViewScreenStyles';
-import { Event, TripMember } from '../types/TripTypes';
+import { styles } from '../../styles/TripViewScreenStyles';
+import { Event, TripMember } from '../../types/TripTypes';
 
 interface EventsListProps {
   events: Event[];

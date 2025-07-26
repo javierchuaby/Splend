@@ -1,11 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { SafeAreaView, StatusBar } from 'react-native';
-import { CreateEventSection } from '../../components/CreateEventSection';
 import { DatePickerModal } from '../../components/DatePickerModal';
-import { EmptyEventsState } from '../../components/EmptyEventsState';
-import { EventsList } from '../../components/EventsList';
-import { NewEventModal } from '../../components/NewEventModal';
+import { CreateEventSection } from '../../components/trip-view-screen/CreateEventSection';
+import { EmptyEventsState } from '../../components/trip-view-screen/EmptyEventsState';
+import { EventsList } from '../../components/trip-view-screen/EventsList';
+import { NewEventModal } from '../../components/trip-view-screen/NewEventModal';
 import { TripViewErrorState } from '../../components/trip-view-screen/TripViewErrorState';
 import { TripViewHeader } from '../../components/trip-view-screen/TripViewHeader';
 import { TripViewLoadingState } from '../../components/trip-view-screen/TripViewLoadingState';
@@ -86,7 +86,7 @@ export default function TripViewScreen() {
 
         <TripViewHeader
           tripName={trip.name}
-          onBackPress={() => router.push('/Home')} // Navigate back to Home
+          onBackPress={() => router.back()} // Navigate back to Home
           onInfoPress={navigateToInfo}
         />
 
@@ -95,7 +95,7 @@ export default function TripViewScreen() {
         ) : (
           <EventsList
             events={events}
-            tripMembers={trip.members} // Pass trip.members for displaying event members
+            tripMembers={trip.members}
             formatDateTime={formatDateTime}
             navigateToEvent={navigateToEvent}
           />
@@ -104,7 +104,6 @@ export default function TripViewScreen() {
         <CreateEventSection
           onCreateEventPress={() => {
             setIsModalVisible(true);
-            // Pre-select current user in event members if not already selected
             if (currentUser && !selectedEventMembers.some(m => m.id === currentUser.id)) {
               setSelectedEventMembers([currentUser]);
             } else if (currentUser && selectedEventMembers.length === 0) {

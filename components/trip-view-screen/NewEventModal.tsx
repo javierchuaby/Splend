@@ -1,15 +1,15 @@
 import React from 'react';
 import {
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { styles } from '../styles/TripViewScreenStyles';
-import { TripMember } from '../types/TripTypes';
+import { styles } from '../../styles/TripViewScreenStyles';
+import { TripMember } from '../../types/TripTypes';
 
 interface NewEventModalProps {
   isModalVisible: boolean;
