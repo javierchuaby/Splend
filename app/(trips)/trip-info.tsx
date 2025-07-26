@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { DateSelectionModal } from '../../components/DateSelectionModal';
-import { ManageTripSection } from '../../components/trip-info-screen/ManageTripSection'; // ADD THIS IMPORT
+import { ManageTripModal } from '../../components/ManageTripModal';
 import { TripInfoDescriptionCard } from '../../components/trip-info-screen/TripInfoDescriptionCard';
 import { TripInfoDurationSection } from '../../components/trip-info-screen/TripInfoDurationSection';
 import { TripInfoErrorState } from '../../components/trip-info-screen/TripInfoErrorState';
@@ -29,6 +29,8 @@ export default function TripInfoScreen() {
     setTempStartDate,
     tempEndDate,
     setTempEndDate,
+    isManageTripModalVisible,
+    setIsManageTripModalVisible,
     showSettlement,
     setShowSettlement,
     isFromConcludeFlow,
@@ -58,7 +60,9 @@ export default function TripInfoScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TripInfoScreenHeader/>
+      <TripInfoScreenHeader
+        onManagePress={() => setIsManageTripModalVisible(true)}
+      />
 
       <ScrollView
         style={styles.scrollContainer}
@@ -101,17 +105,20 @@ export default function TripInfoScreen() {
             <Text style={styles.sectionTitle}>Packing List</Text>
             <TripPackingListPreview tripId={tripId as string} />
           </View>
-
-          <ManageTripSection
-            onSplitBills={() => {
-              setShowSettlement(true);
-            }}
-            onConcludeTrip={concludeTrip}
-            onDeleteTrip={deleteTrip}
-            isTripConcluded={trip.isConcluded}
-          />
         </View>
       </ScrollView>
+
+      <ManageTripModal
+        isVisible={isManageTripModalVisible}
+        onClose={() => setIsManageTripModalVisible(false)}
+        onSplitBills={() => {
+          setIsManageTripModalVisible(false);
+          setShowSettlement(true);
+        }}
+        onConcludeTrip={concludeTrip}
+        onDeleteTrip={deleteTrip}
+        isTripConcluded={trip.isConcluded}
+      />
 
       <DateSelectionModal
         isVisible={showStartDatePicker}

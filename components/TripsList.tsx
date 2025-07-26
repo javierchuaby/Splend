@@ -1,6 +1,6 @@
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
-import { styles } from '../../styles/HomeScreenStyles';
-import { Trip, TripMember } from '../../types/TripTypes';
+import { styles } from '../styles/HomeScreenStyles';
+import { Trip, TripMember } from '../types/TripTypes';
 
 interface TripsListProps {
   trips: Trip[];

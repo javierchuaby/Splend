@@ -43,7 +43,7 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
   placeholder: {
-    width: 12,
+    width: 20,
   },
   errorContainer: {
     flex: 1,

@@ -3,9 +3,13 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { TripInfoScreenStyles as styles } from '../../styles/TripInfoScreenStyles';
 
-interface TripInfoScreenHeaderProps {}
+interface TripInfoScreenHeaderProps {
+  onManagePress: () => void;
+}
 
-export const TripInfoScreenHeader: React.FC<TripInfoScreenHeaderProps> = ({}) => {
+export const TripInfoScreenHeader: React.FC<TripInfoScreenHeaderProps> = ({
+  onManagePress,
+}) => {
   const router = useRouter();
 
   return (
@@ -16,13 +20,13 @@ export const TripInfoScreenHeader: React.FC<TripInfoScreenHeaderProps> = ({}) =>
         }}
       />
       <View style={styles.header}>
-        <View style={styles.headerLeftContainer}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backButton}>← Trip</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.headerRightContainer} />
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backButton}>← Trip</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Info</Text>
+        <TouchableOpacity onPress={onManagePress}>
+          <Text style={styles.manageTripButtonText}>Manage</Text>
+        </TouchableOpacity>
       </View>
     </>
   );

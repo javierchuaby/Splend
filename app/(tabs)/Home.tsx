@@ -2,10 +2,10 @@ import { StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DatePickerModal } from '../../components/DatePickerModal';
-import { EmptyState } from '../../components/home-screen/EmptyTripsState';
-import { HomeHeader } from '../../components/home-screen/HomeHeader';
-import { NewTripModal } from '../../components/home-screen/NewTripModal';
-import { TripsList } from '../../components/home-screen/TripsList';
+import { EmptyState } from '../../components/EmptyState';
+import { HomeHeader } from '../../components/HomeHeader';
+import { NewTripModal } from '../../components/NewTripModal';
+import { TripsList } from '../../components/TripsList';
 import { useHomeScreenLogic } from '../../hooks/useHomeScreenLogic';
 import { styles } from '../../styles/HomeScreenStyles';
 

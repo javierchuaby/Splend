@@ -15,6 +15,8 @@ export const useTripInfoLogic = (tripId: string) => {
   const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isManageTripModalVisible, setIsManageTripModalVisible] =
+    useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
   const [isFromConcludeFlow, setIsFromConcludeFlow] = useState(false);
 
@@ -127,6 +129,8 @@ export const useTripInfoLogic = (tripId: string) => {
   const deleteTrip = async () => {
     if (!trip) return;
 
+    setIsManageTripModalVisible(false);
+
     Alert.alert(
       'Delete Trip',
       `Are you sure you want to delete "${trip.name}"? This action cannot be undone.`,
@@ -158,6 +162,8 @@ export const useTripInfoLogic = (tripId: string) => {
 
   const concludeTrip = async () => {
     if (!trip) return;
+
+    setIsManageTripModalVisible(false);
 
     Alert.alert(
       'Conclude Trip',
@@ -321,6 +327,8 @@ export const useTripInfoLogic = (tripId: string) => {
     setTempStartDate,
     tempEndDate,
     setTempEndDate,
+    isManageTripModalVisible,
+    setIsManageTripModalVisible,
     showSettlement,
     setShowSettlement,
     isFromConcludeFlow,

@@ -1,15 +1,15 @@
 import {
-  KeyboardAvoidingView,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    KeyboardAvoidingView,
+    Modal,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { styles } from '../../styles/HomeScreenStyles';
-import { TripMember } from '../../types/TripTypes';
+import { styles } from '../styles/HomeScreenStyles';
+import { TripMember } from '../types/TripTypes';
 
 interface NewTripModalProps {
   isModalVisible: boolean;
