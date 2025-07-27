@@ -1,9 +1,9 @@
 import { getApp } from '@react-native-firebase/app';
 import {
-    createUserWithEmailAndPassword,
-    getAuth,
-    signOut,
-    updateProfile
+  createUserWithEmailAndPassword,
+  getAuth,
+  signOut,
+  updateProfile,
 } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 
@@ -16,6 +16,11 @@ export interface TripMember {
   totalPaid: number;
 }
 
+export interface Budget {
+  group?: number;
+  individual?: { uid: string; indivBudget: number }[];
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -26,6 +31,7 @@ export interface Trip {
   tripDescription: string;
   isConcluded: boolean;
   eventIds: string[];
+  budgets?: Budget; // Add budgets to the Trip interface
 }
 
 export const isUsernameTaken = async (username: string): Promise<boolean> => {
@@ -44,7 +50,11 @@ export const createUserAccount = async (
 ) => {
   const app = getApp();
   const auth = getAuth(app);
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const userCredential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
   const user = userCredential.user;
 
   if (user) {
@@ -54,7 +64,7 @@ export const createUserAccount = async (
       email: user.email,
       displayName,
       username: username.toLowerCase(),
-      createdAt: firestore.FieldValue.serverTimestamp()
+      createdAt: firestore.FieldValue.serverTimestamp(),
     });
     await signOut(auth);
   }
@@ -62,9 +72,12 @@ export const createUserAccount = async (
   return user;
 };
 
-export const searchUsersByQuery = async (query: string, excludeUserIds: string[] = []): Promise<TripMember[]> => {
+export const searchUsersByQuery = async (
+  query: string,
+  excludeUserIds: string[] = []
+): Promise<TripMember[]> => {
   if (!query.trim()) return [];
-  
+
   const lowerQuery = query.toLowerCase();
   const usersRef = firestore().collection('users');
   let foundUsers: TripMember[] = [];
@@ -102,7 +115,7 @@ export const searchUsersByQuery = async (query: string, excludeUserIds: string[]
           displayName: userData.displayName,
           billIds: userData?.billIds || [],
           totalSpent: userData?.totalSpent || 0,
-          totalPaid: userData?.totalPaid || 0,
+          totalPaid: userData.totalPaid || 0,
         });
       }
     });
@@ -116,7 +129,8 @@ export const createTrip = async (
   tripDescription: string,
   startDate: Date,
   endDate: Date,
-  members: TripMember[]
+  members: TripMember[],
+  budgets?: Budget | null // Added budgets parameter
 ) => {
   const allMembers = members.map(member => ({
     uid: member.id,
@@ -127,7 +141,7 @@ export const createTrip = async (
     totalPaid: 0,
   }));
 
-  const docRef = await firestore().collection('trips').add({
+  const tripData: any = {
     tripName: tripName.trim(),
     tripDescription: tripDescription.trim(),
     startDate: firestore.Timestamp.fromDate(startDate),
@@ -136,7 +150,13 @@ export const createTrip = async (
     eventIds: [],
     createdAt: firestore.FieldValue.serverTimestamp(),
     isConcluded: false,
-  });
+  };
+
+  if (budgets) {
+    tripData.budgets = budgets;
+  }
+
+  const docRef = await firestore().collection('trips').add(tripData);
 
   return docRef.id;
 };
@@ -170,11 +190,13 @@ export const listenToUserTrips = (
             tripDescription: data.tripDescription,
             isConcluded: data.isConcluded,
             eventIds: data.eventIds || [],
+            budgets: data.budgets || undefined, // Add budgets field here
           };
         })
-        .filter((trip: Trip) =>
-          trip.members.some((member: TripMember) => member.id === userId) &&
-          (filter === 'active' ? !trip.isConcluded : trip.isConcluded)
+        .filter(
+          (trip: Trip) =>
+            trip.members.some((member: TripMember) => member.id === userId) &&
+            (filter === 'active' ? !trip.isConcluded : trip.isConcluded)
         );
 
       callback(tripsData);

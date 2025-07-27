@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -25,6 +26,11 @@ interface TripMember {
   totalPaid: number;
 }
 
+interface Budget {
+  group?: number;
+  individual?: { uid: string; indivBudget: number }[];
+}
+
 interface Trip {
   id: string;
   name: string;
@@ -35,6 +41,7 @@ interface Trip {
   tripDescription: string;
   isConcluded: boolean;
   eventIds: string[];
+  budgets?: Budget; // Include budgets field from Firestore
 }
 
 interface MonthOption {
@@ -56,6 +63,11 @@ export default function TripInfoScreen() {
   const [isManageTripModalVisible, setIsManageTripModalVisible] = useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
   const [isFromConcludeFlow, setIsFromConcludeFlow] = useState(false);
+
+  // New states for Edit Budget Modal
+  const [isEditBudgetModalVisible, setIsEditBudgetModalVisible] = useState(false);
+  const [editGroupBudget, setEditGroupBudget] = useState('');
+  const [editIndividualBudget, setEditIndividualBudget] = useState('');
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -109,6 +121,7 @@ export default function TripInfoScreen() {
               tripDescription: data!.tripDescription || '',
               isConcluded: data!.isConcluded || false,
               eventIds: data!.eventIds || [],
+              budgets: data!.budgets || undefined, // Capture budgets
             };
 
             setTrip(currentTrip);
@@ -118,6 +131,14 @@ export default function TripInfoScreen() {
             );
             setHasAccess(isMember);
             setIsLoading(false);
+
+            // Populate budget fields for the modal
+            setEditGroupBudget(currentTrip.budgets?.group?.toString() || '');
+            const currentUserIndivBudget = currentTrip.budgets?.individual?.find(
+              (b) => b.uid === currentUser.id
+            )?.indivBudget;
+            setEditIndividualBudget(currentUserIndivBudget?.toString() || '');
+
           } else {
             setTrip(null);
             setHasAccess(false);
@@ -150,6 +171,10 @@ export default function TripInfoScreen() {
       firestoreUpdate.endDate = firestore.Timestamp.fromDate(
         updatedFields.endDate
       );
+    }
+
+    if (updatedFields.budgets !== undefined) {
+      firestoreUpdate.budgets = updatedFields.budgets;
     }
 
     try {
@@ -344,6 +369,51 @@ export default function TripInfoScreen() {
     return individualMember ? individualMember.totalSpent : 0;
   };
 
+  // NEW: Handle saving budgets
+  const handleSaveBudgets = async () => {
+    if (!trip || !currentUser) return;
+
+    const newBudgets: Budget = {
+      group: undefined,
+      individual: [],
+    };
+
+    const parsedGroupBudget = parseFloat(editGroupBudget);
+    const parsedIndividualBudget = parseFloat(editIndividualBudget);
+
+    // Validate and set group budget
+    if (editGroupBudget.trim() !== '') {
+      if (isNaN(parsedGroupBudget) || parsedGroupBudget < 0) {
+        Alert.alert('Invalid Input', 'Please enter a valid number for Group Budget.');
+        return;
+      }
+      newBudgets.group = parseFloat(parsedGroupBudget.toFixed(2));
+    }
+
+    // Validate and set individual budget for current user
+    if (editIndividualBudget.trim() !== '') {
+      if (isNaN(parsedIndividualBudget) || parsedIndividualBudget < 0) {
+        Alert.alert('Invalid Input', 'Please enter a valid number for Your Individual Budget.');
+        return;
+      }
+      newBudgets.individual = [
+        ...(trip.budgets?.individual || []).filter(b => b.uid !== currentUser.id), // Keep other individual budgets
+        { uid: currentUser.id, indivBudget: parseFloat(parsedIndividualBudget.toFixed(2)) },
+      ];
+    } else {
+        // If individual budget input is empty, ensure current user's budget is removed or not added
+        newBudgets.individual = (trip.budgets?.individual || []).filter(b => b.uid !== currentUser.id);
+    }
+
+    try {
+      await saveTrip({ budgets: newBudgets });
+      setIsEditBudgetModalVisible(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update budgets.');
+      console.error(error);
+    }
+  };
+
   if (isLoading) {
     return (
       <>
@@ -378,7 +448,7 @@ export default function TripInfoScreen() {
         />
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 router.push({
                   pathname: '/(trips)/trip-view',
@@ -401,6 +471,9 @@ export default function TripInfoScreen() {
 
   const groupLedger = calculateGroupLedger();
   const individualLedger = calculateIndividualLedger();
+  const groupBudgetDisplay = trip.budgets?.group !== undefined ? trip.budgets.group : null;
+  const individualBudgetDisplay = trip.budgets?.individual?.find(b => b.uid === currentUser?.id)?.indivBudget || null;
+
 
   return (
     <>
@@ -489,16 +562,34 @@ export default function TripInfoScreen() {
               <View style={styles.ledgerCard}>
                 <View style={styles.ledgerRow}>
                   <Text style={styles.ledgerLabel}>Group Ledger:</Text>
-                  <Text style={styles.ledgerValue}>${groupLedger.toFixed(2)}</Text>
+                  <Text style={styles.ledgerValue}>
+                    ${groupLedger.toFixed(2)}{' '}
+                    {groupBudgetDisplay !== null && (
+                      <Text style={styles.budgetSuffix}>/ ${groupBudgetDisplay.toFixed(2)}</Text>
+                    )}
+                  </Text>
                 </View>
                 <View style={styles.ledgerRow}>
                   <Text style={styles.ledgerLabel}>Your Ledger:</Text>
-                  <Text style={styles.ledgerValue}>${individualLedger.toFixed(2)}</Text>
+                  <Text style={styles.ledgerValue}>
+                    ${individualLedger.toFixed(2)}{' '}
+                    {individualBudgetDisplay !== null && (
+                      <Text style={styles.budgetSuffix}>/ ${individualBudgetDisplay.toFixed(2)}</Text>
+                    )}
+                  </Text>
                 </View>
 
                 <View style={styles.ledgerSeparator} />
 
-                <TouchableOpacity 
+                {/* New: Edit Budget Button */}
+                <TouchableOpacity
+                  style={styles.settlementButtonCompact}
+                  onPress={() => setIsEditBudgetModalVisible(true)}
+                >
+                  <Text style={styles.settlementButtonCompactText}>Edit Budget</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={styles.settlementButtonCompact}
                   onPress={() => {
                     setIsFromConcludeFlow(false);
@@ -558,6 +649,56 @@ export default function TripInfoScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* NEW: Edit Budget Modal */}
+        <Modal
+          visible={isEditBudgetModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setIsEditBudgetModalVisible(false)}
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setIsEditBudgetModalVisible(false)}>
+                <Text style={styles.cancelButton}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Edit Budgets</Text>
+              <TouchableOpacity onPress={handleSaveBudgets}>
+                <Text style={styles.createButton}>Save</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent} contentContainerStyle={styles.scrollViewContentContainer}>
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Group Budget ($)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editGroupBudget}
+                  onChangeText={text => setEditGroupBudget(text.replace(/[^0-9.]/g, ''))}
+                  placeholder="e.g., 1000.00"
+                  placeholderTextColor="#777"
+                  keyboardType="numeric"
+                  keyboardAppearance="dark"
+                />
+              </View>
+
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Your Individual Budget ($)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editIndividualBudget}
+                  onChangeText={text => setEditIndividualBudget(text.replace(/[^0-9.]/g, ''))}
+                  placeholder="e.g., 200.00"
+                  placeholderTextColor="#777"
+                  keyboardType="numeric"
+                  keyboardAppearance="dark"
+                />
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+        {/* END NEW: Edit Budget Modal */}
+
 
         <Modal
           visible={showStartDatePicker}

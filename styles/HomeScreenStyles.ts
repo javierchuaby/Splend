@@ -343,4 +343,12 @@ export default StyleSheet.create({
   scrollViewContentContainer: {
     paddingBottom: 50,
   },
+  budgetInputContainer: {
+    marginBottom: 10,
+  },
+  budgetLabel: {
+    fontSize: 15,
+    color: '#bbb',
+    marginBottom: 5,
+  },
 });
