@@ -2,7 +2,7 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
+  Alert, // Import Alert for confirmation dialogs
   Modal,
   SafeAreaView,
   Text,
@@ -70,21 +70,23 @@ export default function ProfileScreen() {
 
       if (modalType === 'displayName') {
         await userRef.update({ displayName: newValue.trim() });
+        // Also update display name in Firebase Auth
+        await user.updateProfile({ displayName: newValue.trim() });
         setCurrentUser(prev => prev && { ...prev, displayName: newValue.trim() });
       } else if (modalType === 'username') {
         // Check for unique username
         const usernameSnapshot = await firestore()
           .collection('users')
-          .where('username', '==', newValue.trim())
+          .where('username', '==', newValue.trim().toLowerCase()) // Store username as lowercase
           .get();
 
         if (!usernameSnapshot.empty) {
-          alert('Username is already taken.');
+          Alert.alert('Error', 'Username is already taken.'); // Use Alert for consistent feedback
           return;
         }
 
-        await userRef.update({ username: newValue.trim() });
-        setCurrentUser(prev => prev && { ...prev, username: newValue.trim() });
+        await userRef.update({ username: newValue.trim().toLowerCase() }); // Store username as lowercase
+        setCurrentUser(prev => prev && { ...prev, username: newValue.trim().toLowerCase() });
       } else if (modalType === 'password') {
         await user.updatePassword(newValue.trim());
         Alert.alert('Success', 'Password updated successfully.');
@@ -92,10 +94,66 @@ export default function ProfileScreen() {
 
       setIsModalVisible(false);
       setNewValue('');
-    } catch (error) {
+      Alert.alert('Success', 'Profile updated successfully.'); // General success for display name/username
+    } catch (error: any) {
       console.error('Error updating user data:', error);
-      Alert.alert('Error', 'Failed to update user data.');
+      // Specific error handling for password update
+      if (modalType === 'password' && error.code === 'auth/requires-recent-login') {
+        Alert.alert(
+          'Re-authentication Required',
+          'For security reasons, please sign out and sign in again to change your password.'
+        );
+      } else {
+        Alert.alert('Error', 'Failed to update user data. ' + error.message);
+      }
     }
+  };
+
+  // --- DELETE ACCOUNT FUNCTION ---
+  const handleDeleteAccount = async () => {
+    const user = auth().currentUser;
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action is irreversible and will permanently delete all your data. You will be signed out.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Delete user document from Firestore
+              await firestore().collection('users').doc(user.uid).delete();
+              console.log('Firestore user document deleted.');
+
+              // 2. Delete the account from Firebase Auth
+              // This will also automatically sign out the user
+              await user.delete();
+              console.log('Firebase Auth user deleted.');
+
+              // Success message is generally not needed here as the app will redirect
+              // upon sign-out. If you need specific navigation logic, it would go here.
+            } catch (error: any) {
+              console.error('Error deleting account:', error);
+              if (error.code === 'auth/requires-recent-login') {
+                // This is a common security measure for sensitive operations
+                Alert.alert(
+                  'Re-authentication Required',
+                  'For security reasons, please sign out and sign in again to delete your account.'
+                );
+              } else {
+                Alert.alert('Error', 'Failed to delete account: ' + error.message);
+              }
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Sign-out Button
@@ -131,6 +189,7 @@ export default function ProfileScreen() {
           style={styles.settingsButton}
           onPress={() => {
             setModalType('displayName');
+            setNewValue(currentUser?.displayName || ''); // Pre-fill with current value
             setIsModalVisible(true);
           }}
         >
@@ -140,6 +199,7 @@ export default function ProfileScreen() {
           style={styles.settingsButton}
           onPress={() => {
             setModalType('username');
+            setNewValue(currentUser?.username || ''); // Pre-fill with current value
             setIsModalVisible(true);
           }}
         >
@@ -149,6 +209,7 @@ export default function ProfileScreen() {
           style={styles.settingsButton}
           onPress={() => {
             setModalType('password');
+            setNewValue(''); // Password field should always be empty
             setIsModalVisible(true);
           }}
         >
@@ -156,16 +217,23 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sign Out Button */}
+      {/* Sign Out & Delete Account Buttons */}
       <View style={styles.signOutContainer}>
         <SignOutButton />
+        {/* NEW DELETE ACCOUNT BUTTON */}
+        <TouchableOpacity
+          style={styles.deleteAccountButton} // Apply specific style
+          onPress={handleDeleteAccount}
+        >
+          <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Modal for Editing Because I'm Too Lazy To Code New Screens FOR NOW */}
       <Modal
         visible={isModalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setIsModalVisible(false)} // Allow dismissing with swipe down on iOS
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>

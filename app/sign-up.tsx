@@ -1,5 +1,10 @@
 import { getApp } from '@react-native-firebase/app';
-import { createUserWithEmailAndPassword, getAuth, updateProfile } from '@react-native-firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  signOut,
+  updateProfile,
+} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Stack, useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
@@ -60,8 +65,10 @@ export default function SignUp() {
           createdAt: firestore.FieldValue.serverTimestamp(), // kaypoh only
         });
       }
+
+      await signOut(auth); // Sign out after creating account
       
-      // router.back(); // Dunno if I want this yet. It's smoother to just let the user in straightaway
+      router.push('/'); // Re-implemented this, because bugs occur when allowing the user in right after sign up
     } catch (e: any) {
       const err = e as FirebaseError;
       // Common Firebase auth errors

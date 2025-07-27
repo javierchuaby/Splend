@@ -30,7 +30,7 @@ interface Event {
   location: FirebaseFirestoreTypes.GeoPoint;
   startDateTime: Date;
   endDateTime: Date;
-  memberIds: string[]; // Array of UID strings
+  memberIds: string[];
   billIds: string[];
 }
 

@@ -668,8 +668,6 @@ export default function EventViewScreen() {
         }, 0);
 
         setNewWhoPaid([]);
-
-        Alert.alert('Scan Complete', 'Receipt items populated!');
       } else {
         setScanError('AI did not return expected item format.');
         Alert.alert('Scan Failed', 'Could not parse receipt from AI. Please try again or enter manually.');

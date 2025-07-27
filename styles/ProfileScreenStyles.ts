@@ -106,4 +106,20 @@ export default StyleSheet.create({
     backgroundColor: '#1e1e1e',
     color: '#fff',
   },
+  deleteAccountButton: {
+    backgroundColor: '#ff453a',
+    borderWidth: 1,
+    borderColor: '#b2342c',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginTop: 15,
+    width: '100%',
+  },
+  deleteAccountButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
 });
