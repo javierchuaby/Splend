@@ -1,95 +1,3 @@
-const calculateUserBalances = (bills: Bill[], tripMembers: TripMember[]): UserBalance[] => {
-    const balances: { [userId: string]: UserBalance } = {};
-
-    tripMembers.forEach(member => {
-      balances[member.uid] = {
-        userId: member.uid,
-        userName: member.displayName,
-        totalPaid: 0,
-        totalOwed: 0,
-        netBalance: 0
-      };
-    });
-
-    bills.forEach(bill => {
-      bill.whoPaid.forEach(payer => {
-        if (balances[payer.uid]) {
-          balances[payer.uid].totalPaid += Math.round(payer.amountPaid * 100);
-        }
-      });
-
-      bill.billItems.forEach(item => {
-        const itemPriceCents = Math.round(item.billItemPrice * 100);
-
-        let costPerPersonCents: number;
-        if (item.costPerUser !== undefined) {
-          costPerPersonCents = Math.round(item.costPerUser * 100);
-        } else {
-          costPerPersonCents = Math.round(itemPriceCents / item.billItemUserIds.length);
-        }
-
-        item.billItemUserIds.forEach(userId => {
-          if (balances[userId]) {
-            balances[userId].totalOwed += costPerPersonCents;
-          }
-        });
-      });
-    });
-
-    Object.values(balances).forEach(balance => {
-      balance.netBalance = balance.totalPaid - balance.totalOwed;
-    });
-
-    return Object.values(balances);
-  }
-
-const optimiseSettlements = (originalBalances: UserBalance[]): Settlement[] => {
-    const balances = originalBalances.map(balance => ({ ...balance }));
-    const settlements: Settlement[] = [];
-
-    const creditors = balances
-      .filter(b => b.netBalance > 1)
-      .sort((a, b) => b.netBalance - a.netBalance);
-
-    const debtors = balances
-      .filter(b => b.netBalance < -1)
-      .map(b => ({ ...b, netBalance: Math.abs(b.netBalance) }))
-      .sort((a, b) => b.netBalance - a.netBalance);
-
-    let creditorIndex = 0;
-    let debtorIndex = 0;
-
-    while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
-      const creditor = creditors[creditorIndex];
-      const debtor = debtors[debtorIndex];
-
-      const settlementAmountCents = Math.min(creditor.netBalance, debtor.netBalance);
-
-      if (settlementAmountCents > 1) {
-        settlements.push({
-          id: `${debtor.userId}-${creditor.userId}-${Date.now()}`,
-          from: debtor.userId,
-          to: creditor.userId,
-          amount: settlementAmountCents
-        });
-
-        creditor.netBalance -= settlementAmountCents;
-        debtor.netBalance -= settlementAmountCents;
-      }
-
-      if (creditor.netBalance <= 1) creditorIndex++;
-      if (debtor.netBalance <= 1) debtorIndex++;
-    }
-
-    return settlements;
-  }
-
-const calculateMaxPossibleTransactions = (balances: UserBalance[]): number => {
-    const creditors = balances.filter(b => b.netBalance > 1).length;
-    const debtors = balances.filter(b => b.netBalance < -1).length;
-    return creditors * debtors;
-  }
-
 import firestore from '@react-native-firebase/firestore';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -166,6 +74,92 @@ export interface BillSettlementManagerProps {
   visible: boolean;
 }
 
+const calculateUserBalances = (bills: Bill[], tripMembers: TripMember[]): UserBalance[] => {
+  const balances: { [userId: string]: UserBalance } = {};
+  
+  tripMembers.forEach(member => {
+    balances[member.uid] = {
+      userId: member.uid,
+      userName: member.displayName,
+      totalPaid: 0,
+      totalOwed: 0,
+      netBalance: 0
+    };
+  });
+
+  bills.forEach(bill => {
+    bill.whoPaid.forEach(payer => {
+      if (balances[payer.uid]) {
+        balances[payer.uid].totalPaid += Math.round(payer.amountPaid * 100);
+      }
+    });
+
+    bill.billItems.forEach(item => {
+      const itemPriceCents = Math.round(item.billItemPrice * 100);
+      let costPerPersonCents: number;
+
+      if (item.costPerUser !== undefined) {
+        costPerPersonCents = Math.round(item.costPerUser * 100);
+      } else {
+        costPerPersonCents = Math.round(itemPriceCents / item.billItemUserIds.length);
+      }
+
+      item.billItemUserIds.forEach(userId => {
+        if (balances[userId]) {
+          balances[userId].totalOwed += costPerPersonCents;
+        }
+      });
+    });
+  });
+
+  Object.values(balances).forEach(balance => {
+    balance.netBalance = balance.totalPaid - balance.totalOwed;
+  });
+
+  return Object.values(balances);
+};
+
+const optimiseSettlements = (originalBalances: UserBalance[]): Settlement[] => {
+
+  const creditors = originalBalances.filter(b => b.netBalance > 0).map(b => ({ ...b }));
+  const debtors = originalBalances.filter(b => b.netBalance < 0).map(b => ({ ...b }));
+
+  const settlements: Settlement[] = [];
+
+  for (const debtor of debtors) {
+    let remainingDebt = Math.abs(debtor.netBalance);
+
+    for (const creditor of creditors) {
+      if (remainingDebt <= 0 || creditor.netBalance <= 0) continue;
+
+      const settlementAmount = Math.min(remainingDebt, creditor.netBalance);
+
+      if (settlementAmount < 1) continue; // Skip tiny amounts
+
+      settlements.push({
+        id: `${debtor.userId}-${creditor.userId}-${Date.now()}-${settlements.length}`,
+        from: debtor.userId,
+        to: creditor.userId,
+        amount: settlementAmount
+      });
+
+      creditor.netBalance -= settlementAmount;
+      remainingDebt -= settlementAmount;
+    }
+  }
+
+  return settlements;
+};
+
+const calculateMaxPossibleTransactions = (balances: UserBalance[]): number => {
+  const creditors = balances.filter(b => b.netBalance > 0).length;
+  const debtors = balances.filter(b => b.netBalance < 0).length;
+  
+  if (creditors === 0 || debtors === 0) return 0;
+  
+  return creditors * debtors;
+};
+
 export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
   tripId,
   tripName,
@@ -177,19 +171,15 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  ;
-
-  ;
-
-  ;
-
   const generateSettlementReport = (bills: Bill[], tripMembers: TripMember[]): SettlementReport => {
     const balances = calculateUserBalances(bills, tripMembers);
     const settlements = optimiseSettlements(balances);
     const maxTransactions = calculateMaxPossibleTransactions(balances);
 
     const totalExpensesCents = bills.reduce((sum, bill) =>
-      sum + bill.billItems.reduce((itemSum, item) => itemSum + Math.round(item.billItemPrice * 100), 0), 0
+      sum + bill.billItems.reduce((itemSum, item) => 
+        itemSum + Math.round(item.billItemPrice * 100), 0
+      ), 0
     );
 
     return {
@@ -199,7 +189,7 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
       summary: {
         totalTransactions: settlements.length,
         maxTransactionsWithoutOptimisation: maxTransactions,
-        optimisationSavings: maxTransactions - settlements.length
+        optimisationSavings: Math.max(0, maxTransactions - settlements.length)
       }
     };
   };
@@ -238,7 +228,6 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
       const billArrays = await Promise.all(billPromises);
       return billArrays.flat();
     } catch (error) {
-      console.error('Error fetching bills:', error);
       throw new Error('Failed to fetch trip bills');
     }
   };
@@ -254,7 +243,6 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
 
       return tripData.members as TripMember[];
     } catch (error) {
-      console.error('Error fetching trip members:', error);
       throw new Error('Failed to fetch trip members');
     }
   };
@@ -282,7 +270,7 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
     const toUser = settlementData.balances.find(b => b.userId === s.to)?.userName || 'Unknown';
     return `• ${fromUser} pays ${toUser}: $${(s.amount / 100).toFixed(2)}`;
   }).join('\n')}
-`.trim();
+    `.trim();
 
     try {
       await Share.share({
@@ -312,7 +300,6 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
       const settlement = generateSettlementReport(bills, tripMembers);
       setSettlementData(settlement);
     } catch (error) {
-      console.error('Settlement calculation error:', error);
       setError(error instanceof Error ? error.message : 'Failed to calculate settlements');
     } finally {
       setLoading(false);
@@ -333,11 +320,11 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
       <View style={styles.settlementRow}>
         <View style={styles.settlementInfo}>
           <Text style={styles.settlementText}>
-            {fromUser} pays{' '}
-            <Text style={{ fontWeight: 'bold' }}>{toUser}</Text>
+            <Text style={styles.userName}>{fromUser}</Text> pays{' '}
+            <Text style={styles.userName}>{toUser}</Text>
           </Text>
-          <Text style={styles.amount}>${(settlement.amount / 100).toFixed(2)}</Text>
         </View>
+        <Text style={styles.amount}>${(settlement.amount / 100).toFixed(2)}</Text>
       </View>
     );
   };
@@ -369,12 +356,10 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.closeButton}>← Close</Text>
           </TouchableOpacity>
-
           <View style={styles.headerCenter}>
             <Text style={styles.title}>{tripName}</Text>
             <Text style={styles.subtitle}>Settlement Report</Text>
           </View>
-
           {settlementData ? (
             <TouchableOpacity onPress={exportSettlementReport}>
               <Text style={styles.exportButton}>Export</Text>
@@ -393,28 +378,24 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
             <>
               <View style={styles.summaryCard}>
                 <Text style={styles.sectionTitle}>Trip Summary</Text>
-
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Expenses:</Text>
                   <Text style={styles.summaryValue}>
                     ${(settlementData.totalExpenses / 100).toFixed(2)}
                   </Text>
                 </View>
-
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Settlements Required:</Text>
                   <Text style={styles.summaryValue}>
                     {settlementData.settlements.length}
                   </Text>
                 </View>
-
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Transactions Saved:</Text>
                   <Text style={[styles.summaryValue, styles.optimisationText]}>
                     {settlementData.summary.optimisationSavings}
                   </Text>
                 </View>
-
                 <Text style={styles.optimisationNote}>
                   Optimised from {settlementData.summary.maxTransactionsWithoutOptimisation} possible transactions
                 </Text>
@@ -673,6 +654,7 @@ const styles = StyleSheet.create({
 export default BillSettlementManager;
 
 export {
-  calculateMaxPossibleTransactions, calculateUserBalances,
+  calculateMaxPossibleTransactions,
+  calculateUserBalances,
   optimiseSettlements
 };
