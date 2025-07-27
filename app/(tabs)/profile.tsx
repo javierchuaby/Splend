@@ -5,12 +5,12 @@ import {
   Alert,
   Modal,
   SafeAreaView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+import styles from '../../styles/ProfileScreenStyles';
 
 export default function ProfileScreen() {
   const [currentUser, setCurrentUser] = useState<{
@@ -205,111 +205,3 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
-  },
-  greetingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  greetingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#aaa',
-  },
-  displayNameText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 8,
-  },
-  settingsContainer: {
-    flex: 2,
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  settingsButton: {
-    backgroundColor: '#2c2c2c',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  settingsButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  signOutContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  signOutButton: {
-    backgroundColor: '#ff453a',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  signOutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  cancelButton: {
-    fontSize: 16,
-    color: '#0a84ff',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  saveButton: {
-    fontSize: 16,
-    color: '#0a84ff',
-    fontWeight: '600',
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#1e1e1e',
-    color: '#fff',
-  },
-});
