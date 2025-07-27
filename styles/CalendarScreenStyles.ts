@@ -1,0 +1,92 @@
+import { StyleSheet } from 'react-native';
+
+export default StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1e1e1e',
+    alignItems: 'center',
+  },
+  calendar: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: 400,
+    height: 350,
+    marginTop: 50,
+  },
+  eventsSection: {
+    width: 400,
+    flex: 1,
+    padding: 16,
+  },
+  eventsTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  noEvents: {
+    color: '#888',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 32,
+  },
+  eventItem: {
+    backgroundColor: '#232323',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 12,
+  },
+  eventTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  eventTime: {
+    color: '#aaa',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#1e1e1e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: 340,
+    backgroundColor: '#232323',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'flex-start',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  modalLabel: {
+    color: '#aaa',
+    fontSize: 14,
+    marginTop: 10,
+  },
+  modalValue: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  closeButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    backgroundColor: '#305cde',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+});
