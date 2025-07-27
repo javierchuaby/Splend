@@ -1,10 +1,8 @@
 import 'react-native-gesture-handler/jestSetup';
 
-// Set up environment variables
 process.env.EXPO_OS = 'ios';
 process.env.NODE_ENV = 'test';
 
-// Mock React Native components with proper function components
 jest.mock('react-native', () => {
   const React = require('react');
   
@@ -17,7 +15,6 @@ jest.mock('react-native', () => {
   };
 
   return {
-    // Core UI Components
     View: mockComponent('View'),
     Text: mockComponent('Text'),
     ScrollView: mockComponent('ScrollView'),
@@ -35,7 +32,6 @@ jest.mock('react-native', () => {
     KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
     RefreshControl: mockComponent('RefreshControl'),
     
-    // APIs
     Alert: {
       alert: jest.fn()
     },
@@ -50,7 +46,6 @@ jest.mock('react-native', () => {
       hairlineWidth: 1,
       absoluteFill: {},
       absoluteFillObject: {},
-      // Critical: Add flatten function for @testing-library/react-native
       flatten: jest.fn((styles) => {
         if (!styles) return undefined;
         if (Array.isArray(styles)) {
@@ -68,7 +63,6 @@ jest.mock('react-native', () => {
       get: jest.fn(() => 2)
     },
     
-    // Animated
     Animated: {
       View: mockComponent('Animated.View'),
       Text: mockComponent('Animated.Text'),
@@ -92,7 +86,6 @@ jest.mock('react-native', () => {
   };
 });
 
-// Mock Picker component with proper structure
 jest.mock('@react-native-picker/picker', () => {
   const React = require('react');
   
@@ -113,7 +106,6 @@ jest.mock('@react-native-picker/picker', () => {
   };
 });
 
-// Mock Expo Vector Icons
 jest.mock('@expo/vector-icons', () => {
   const React = require('react');
   
@@ -150,7 +142,6 @@ jest.mock('@expo/vector-icons', () => {
   return mocks;
 });
 
-// Mock Firebase services (existing mocks)
 jest.mock('@react-native-firebase/app', () => ({
   getApp: jest.fn(() => ({
     name: 'mock-app',
@@ -174,7 +165,7 @@ jest.mock('@react-native-firebase/auth', () => ({
   signOut: jest.fn(() => Promise.resolve()),
   onAuthStateChanged: jest.fn((auth, cb) => {
     cb(null);
-    return () => {}; // mock unsubscribe
+    return () => {};
   }),
   createUserWithEmailAndPassword: jest.fn(() =>
     Promise.resolve({ user: { uid: 'abc123', email: 'test@example.com' } })
@@ -196,7 +187,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   const mockOnSnapshot = jest.fn();
   const mockDoc = jest.fn();
 
-  // Chain mock methods
   mockWhere.mockReturnValue({ get: mockGet, limit: mockLimit });
   mockLimit.mockReturnValue({ get: mockGet });
   mockOrderBy.mockReturnValue({ 
@@ -231,7 +221,6 @@ jest.mock('@react-native-firebase/firestore', () => {
     fromDate: jest.fn((date) => ({ toDate: () => date }))
   };
 
-  // Store references for test access
   mockFirestore.mockGet = mockGet;
   mockFirestore.mockAdd = mockAdd;
   mockFirestore.mockWhere = mockWhere;
@@ -242,7 +231,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   return mockFirestore;
 });
 
-// Mock Expo router
 jest.mock('expo-router', () => ({
   router: {
     push: jest.fn(),
@@ -259,14 +247,12 @@ jest.mock('expo-router', () => ({
   }
 }));
 
-// Mock Expo constants
 jest.mock('expo-constants', () => ({
   default: {
     expoConfig: {}
   }
 }));
 
-// Suppress console warnings for cleaner test output
 const originalWarn = console.warn;
 console.warn = (...args) => {
   if (args[0]?.includes?.('The global process.env.EXPO_OS is not defined') ||

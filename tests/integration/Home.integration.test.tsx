@@ -28,11 +28,9 @@ describe('Home Screen Integration', () => {
   it('displays modal elements when rendered', () => {
     const { getByText, getAllByText } = render(<Home />);
     
-    // Test unique modal content
     expect(getByText('New Trip')).toBeTruthy();
     expect(getByText('Create')).toBeTruthy();
     
-    // Use getAllByText for elements that appear multiple times
     const cancelButtons = getAllByText('Cancel');
     expect(cancelButtons.length).toBeGreaterThanOrEqual(1);
   });
@@ -40,11 +38,9 @@ describe('Home Screen Integration', () => {
   it('displays date picker modal elements', () => {
     const { getByText, getAllByText } = render(<Home />);
     
-    // Test date picker specific content
     expect(getByText('Select Start Date')).toBeTruthy();
     expect(getByText('Select End Date')).toBeTruthy();
     
-    // Use getAllByText for multiple "Done" buttons
     const doneButtons = getAllByText('Done');
     expect(doneButtons.length).toBeGreaterThanOrEqual(2); // One for start date, one for end date
   });
@@ -52,7 +48,6 @@ describe('Home Screen Integration', () => {
   it('displays trip form elements', () => {
     const { getByPlaceholderText } = render(<Home />);
     
-    // Test form inputs by placeholder text (more specific)
     expect(getByPlaceholderText('Enter trip name')).toBeTruthy();
     expect(getByPlaceholderText('Describe your trip...')).toBeTruthy();
     expect(getByPlaceholderText('Search users by username or display name')).toBeTruthy();
