@@ -1,4 +1,3 @@
-import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -7,9 +6,9 @@ import {
     SafeAreaView,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
-import styles from '../../styles/concluded-trip-members-styles';
+import styles from '../../styles/trip-members.styles';
 
 interface TripMember {
   id: string;
@@ -27,125 +26,76 @@ interface Trip {
   startDate: Date;
   endDate: Date;
   createdAt: Date;
-  tripDescription: string;
-  isConcluded: boolean;
-  eventIds: string[];
+  tripDescription?: string;
+  isConcluded?: boolean;
+  eventIds?: string[];
 }
 
 export default function ConcludedTripMembersScreen() {
   const router = useRouter();
   const { tripId } = useLocalSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [currentUser, setCurrentUser] = useState<TripMember | null>(null);
-  const [hasAccess, setHasAccess] = useState(false);
+  const [isLoadingTrip, setIsLoadingTrip] = useState(true);
 
-  // Fetch current user's details
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      const user = auth().currentUser;
-      if (user) {
-        const userDoc = await firestore().collection('users').doc(user.uid).get();
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setCurrentUser({
-            id: user.uid,
-            username: userData?.username,
-            displayName: userData?.displayName,
-            billIds: userData?.billIds,
-            totalSpent: userData?.totalSpent,
-            totalPaid: userData?.totalPaid,
-          });
-        }
-      }
-    };
-    fetchCurrentUser();
-  }, []);
-
-  // Fetch trip data and members
-  useEffect(() => {
-    if (!tripId || !currentUser) return;
-
+    if (!tripId) {
+      setIsLoadingTrip(false);
+      return;
+    }
     const unsubscribe = firestore()
       .collection('trips')
       .doc(tripId as string)
       .onSnapshot(async doc => {
         if (doc.exists()) {
           const data = doc.data();
-          const tripMembers = data!.members;
-
-          // Fetch user data for each member from the `users` collection
-          const resolvedMembers: TripMember[] = await Promise.all(
-            tripMembers.map(async (member: { uid: string, username: string, displayName: string }) => {
-              const userDoc = await firestore().collection('users').doc(member.uid).get();
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                return {
-                  id: member.uid,
-                  username: userData?.username,
-                  displayName: userData?.displayName,
-                };
-              } else {
-                // Fallback to member info in the trip document (might be outdated) if cannot find member in members collection
-                return {
-                  id: member.uid,
-                  username: member.username,
-                  displayName: member.displayName,
-                };
-              }
-            })
-          );
-
-          const currentTrip: Trip = {
+          const firestoreMembers: any[] = data?.members || [];
+          const resolvedMembers: TripMember[] = [];
+          for (const memberRef of firestoreMembers) {
+            const userDoc = await firestore().collection('users').doc(memberRef.uid).get();
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              resolvedMembers.push({
+                id: memberRef.uid,
+                username: userData?.username,
+                displayName: userData?.displayName,
+                billIds: userData?.billIds,
+                totalSpent: userData?.totalSpent,
+                totalPaid: userData?.totalPaid,
+              });
+            } else {
+              resolvedMembers.push({
+                id: memberRef.uid,
+                username: 'deleted',
+                displayName: 'Deleted User',
+                billIds: [],
+                totalSpent: 0,
+                totalPaid: 0,
+              });
+            }
+          }
+          setTrip({
             id: doc.id,
             name: data!.tripName,
             members: resolvedMembers,
             startDate: data!.startDate.toDate(),
             endDate: data!.endDate.toDate(),
             createdAt: data!.createdAt?.toDate() ?? new Date(),
-            tripDescription: data!.tripDescription || '',
-            isConcluded: data!.isConcluded || false,
-            eventIds: data!.eventIds || [],
-          };
-
-          setTrip(currentTrip);
-
-          // Check if current user is a member to grant access
-          const isMember = resolvedMembers.some(
-            member => member.id === currentUser.id
-          );
-          setHasAccess(isMember);
+            tripDescription: data?.tripDescription || '',
+            isConcluded: data?.isConcluded || false,
+            eventIds: data?.eventIds || [],
+          });
         } else {
           setTrip(null);
-          setHasAccess(false);
         }
+        setIsLoadingTrip(false);
       });
     return unsubscribe;
-  }, [tripId, currentUser]);
-
+  }, [tripId]);
 
   const orderedMembers = useMemo(() => {
-    if (!trip || !currentUser) {
-      return [];
-    }
-
-    const membersWithoutCurrentUser = trip.members.filter(
-      member => member.id !== currentUser.id
-    );
-
-    membersWithoutCurrentUser.sort((a, b) =>
-      a.displayName.localeCompare(b.displayName)
-    );
-
-    const currentUserAsMember = trip.members.find(
-      member => member.id === currentUser.id
-    );
-
-    if (currentUserAsMember) {
-      return [currentUserAsMember, ...membersWithoutCurrentUser];
-    } else {
-      return membersWithoutCurrentUser;
-    }
-  }, [trip, currentUser]);
+    if (!trip) return [];
+    return [...trip.members].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [trip]);
 
   const renderMemberItem = ({ item }: { item: TripMember }) => (
     <View style={styles.memberItem}>
@@ -161,7 +111,7 @@ export default function ConcludedTripMembersScreen() {
     </View>
   );
 
-  if (!tripId || !currentUser) {
+  if (isLoadingTrip) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -181,7 +131,7 @@ export default function ConcludedTripMembersScreen() {
     );
   }
 
-  if (!trip || !hasAccess) {
+  if (!trip) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -215,17 +165,16 @@ export default function ConcludedTripMembersScreen() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.content}>
-
           <View style={styles.membersSection}>
+            <Text style={styles.sectionTitle}>
+              Members ({orderedMembers.length})
+            </Text>
             <FlatList
               data={orderedMembers}
               renderItem={renderMemberItem}
               keyExtractor={item => item.id}
               style={styles.membersList}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={() => (
-                <Text style={styles.noMembersText}>No members found for this trip.</Text>
-              )}
             />
           </View>
         </View>
