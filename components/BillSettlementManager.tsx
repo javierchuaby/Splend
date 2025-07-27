@@ -1,91 +1,4 @@
-import firestore from '@react-native-firebase/firestore';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
-
-interface BillItem {
-  billItemName: string;
-  billItemPrice: number;
-  billItemUserIds: string[];
-  costPerUser?: number;
-}
-
-interface WhoPaidEntry {
-  uid: string;
-  amountPaid: number;
-}
-
-interface Bill {
-  id: string;
-  billName: string;
-  billEvent: string;
-  billDateTime: Date;
-  billUserIds: string[];
-  billItems: BillItem[];
-  whoPaid: WhoPaidEntry[];
-}
-
-interface UserBalance {
-  userId: string;
-  userName: string;
-  totalPaid: number;
-  totalOwed: number;
-  netBalance: number;
-}
-
-interface Settlement {
-  id: string;
-  from: string;
-  to: string;
-  amount: number;
-}
-
-interface SettlementReport {
-  balances: UserBalance[];
-  settlements: Settlement[];
-  totalExpenses: number;
-  summary: {
-    totalTransactions: number;
-    maxTransactionsWithoutOptimisation: number;
-    optimisationSavings: number;
-  };
-}
-
-interface TripMember {
-  uid: string;
-  username: string;
-  displayName: string;
-}
-
-export interface BillSettlementManagerProps {
-  tripId: string;
-  tripName: string;
-  onClose?: () => void;
-  visible: boolean;
-}
-
-export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
-  tripId,
-  tripName,
-  onClose,
-  visible
-}) => {
-  const router = useRouter();
-  const [settlementData, setSettlementData] = useState<SettlementReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const calculateUserBalances = (bills: Bill[], tripMembers: TripMember[]): UserBalance[] => {
+const calculateUserBalances = (bills: Bill[], tripMembers: TripMember[]): UserBalance[] => {
     const balances: { [userId: string]: UserBalance } = {};
 
     tripMembers.forEach(member => {
@@ -107,7 +20,7 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
 
       bill.billItems.forEach(item => {
         const itemPriceCents = Math.round(item.billItemPrice * 100);
-        
+
         let costPerPersonCents: number;
         if (item.costPerUser !== undefined) {
           costPerPersonCents = Math.round(item.costPerUser * 100);
@@ -128,9 +41,9 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
     });
 
     return Object.values(balances);
-  };
+  }
 
-  const optimiseSettlements = (originalBalances: UserBalance[]): Settlement[] => {
+const optimiseSettlements = (originalBalances: UserBalance[]): Settlement[] => {
     const balances = originalBalances.map(balance => ({ ...balance }));
     const settlements: Settlement[] = [];
 
@@ -169,13 +82,106 @@ export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
     }
 
     return settlements;
-  };
+  }
 
-  const calculateMaxPossibleTransactions = (balances: UserBalance[]): number => {
+const calculateMaxPossibleTransactions = (balances: UserBalance[]): number => {
     const creditors = balances.filter(b => b.netBalance > 1).length;
     const debtors = balances.filter(b => b.netBalance < -1).length;
     return creditors * debtors;
+  }
+
+import firestore from '@react-native-firebase/firestore';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+
+export interface BillItem {
+  billItemName: string;
+  billItemPrice: number;
+  billItemUserIds: string[];
+  costPerUser?: number;
+}
+
+export interface WhoPaidEntry {
+  uid: string;
+  amountPaid: number;
+}
+
+export interface Bill {
+  id: string;
+  billName: string;
+  billEvent: string;
+  billDateTime: Date;
+  billUserIds: string[];
+  billItems: BillItem[];
+  whoPaid: WhoPaidEntry[];
+}
+
+export interface UserBalance {
+  userId: string;
+  userName: string;
+  totalPaid: number;
+  totalOwed: number;
+  netBalance: number;
+}
+
+export interface Settlement {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+}
+
+export interface SettlementReport {
+  balances: UserBalance[];
+  settlements: Settlement[];
+  totalExpenses: number;
+  summary: {
+    totalTransactions: number;
+    maxTransactionsWithoutOptimisation: number;
+    optimisationSavings: number;
   };
+}
+
+export interface TripMember {
+  uid: string;
+  username: string;
+  displayName: string;
+}
+
+export interface BillSettlementManagerProps {
+  tripId: string;
+  tripName: string;
+  onClose?: () => void;
+  visible: boolean;
+}
+
+export const BillSettlementManager: React.FC<BillSettlementManagerProps> = ({
+  tripId,
+  tripName,
+  onClose,
+  visible
+}) => {
+  const router = useRouter();
+  const [settlementData, setSettlementData] = useState<SettlementReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  ;
+
+  ;
+
+  ;
 
   const generateSettlementReport = (bills: Bill[], tripMembers: TripMember[]): SettlementReport => {
     const balances = calculateUserBalances(bills, tripMembers);
@@ -387,7 +393,7 @@ ${settlementData.settlements.length === 0 ? '• All settled! No payments requir
             <>
               <View style={styles.summaryCard}>
                 <Text style={styles.sectionTitle}>Trip Summary</Text>
-                
+
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Expenses:</Text>
                   <Text style={styles.summaryValue}>
@@ -665,3 +671,8 @@ const styles = StyleSheet.create({
 });
 
 export default BillSettlementManager;
+
+export {
+  calculateMaxPossibleTransactions, calculateUserBalances,
+  optimiseSettlements
+};

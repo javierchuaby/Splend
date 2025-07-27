@@ -1,5 +1,3 @@
-import { getApp } from '@react-native-firebase/app';
-import { getAuth, signInWithEmailAndPassword } from '@react-native-firebase/auth';
 import { Link, useRouter } from 'expo-router'; // IMPORTANT: Import Link AND useRouter
 import { FirebaseError } from 'firebase/app';
 import { useState } from "react";
@@ -14,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import styles from '../styles/IndexScreenStyles';
+import { signInUser } from './services/authService';
 
 export default function Index() {
   const [email, setEmail] = useState('');
@@ -22,18 +21,16 @@ export default function Index() {
   const router = useRouter();
 
   const signIn = async () => {
-    setLoading(true);
-    try {
-      const app = getApp();
-      const auth = getAuth(app);
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (e: any) {
-      const err = e as FirebaseError;
-      alert('Sign in failed: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+  setLoading(true);
+  try {
+    await signInUser(email, password);
+  } catch (e: any) {
+    const err = e as FirebaseError;
+    alert('Sign in failed: ' + err.message);
+  } finally {
+    setLoading(false);
   }
+};
 
   return (
     <SafeAreaView style={styles.container}>
