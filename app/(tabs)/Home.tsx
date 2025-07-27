@@ -1,6 +1,4 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -18,27 +16,14 @@ import {
   View
 } from 'react-native';
 import styles from '../../styles/HomeScreenStyles';
-
-interface TripMember {
-  id: string;
-  username: string;
-  displayName: string;
-  billIds: string[];
-  totalSpent: number;
-  totalPaid: number;
-}
-
-interface Trip {
-  id: string;
-  name: string;
-  members: TripMember[];
-  startDate: Date;
-  endDate: Date;
-  createdAt: Date;
-  tripDescription: string;
-  isConcluded: boolean;
-  eventIds: string[];
-}
+import { listenToCurrentUser } from '../services/authService';
+import {
+  createTrip,
+  listenToUserTrips,
+  searchUsersByQuery,
+  type Trip,
+  type TripMember
+} from '../services/firestoreService';
 
 interface MonthOption {
   label: string;
@@ -68,59 +53,23 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      const user = auth().currentUser;
-      if (user) {
-        const userDoc = await firestore().collection('users').doc(user.uid).get();
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setCurrentUser({
-            id: user.uid,
-            username: userData?.username,
-            displayName: userData?.displayName,
-            billIds: userData?.billIds,
-            totalSpent: userData?.totalSpent,
-            totalPaid: userData?.totalPaid,
-          });
-        }
-      }
-    };
-    fetchCurrentUser();
+    const unsubscribe = listenToCurrentUser((userData) => {
+      setCurrentUser(userData);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
     if (!currentUser) return;
 
-    const unsubscribe = firestore()
-      .collection('trips')
-      .orderBy('startDate')
-      .onSnapshot(snapshot => {
-        const tripsData = snapshot.docs
-          .map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.tripName,
-              members: data.members.map((member: any) => ({
-                id: member.uid,
-                username: member.username,
-                displayName: member.displayName,
-              })),
-              startDate: data.startDate.toDate(),
-              endDate: data.endDate.toDate(),
-              createdAt: data.createdAt?.toDate(),
-              tripDescription: data.tripDescription,
-              isConcluded: data.isConcluded,
-              eventIds: data.eventIds,
-            };
-          })
-          .filter((trip: Trip) =>
-            trip.members.some((member: TripMember) => member.id === currentUser.id) &&
-            (tripFilter === 'active' ? !trip.isConcluded : trip.isConcluded)
-          );
-
+    const unsubscribe = listenToUserTrips(
+      currentUser.id,
+      tripFilter,
+      (tripsData) => {
         setTrips(tripsData);
-      });
+      }
+    );
+
     return unsubscribe;
   }, [currentUser, tripFilter]);
 
@@ -132,55 +81,14 @@ export default function HomeScreen() {
       }
 
       setIsLoadingUsers(true);
-      const query = memberSearchQuery.toLowerCase();
-      const usersRef = firestore().collection('users');
-      let foundUsers: TripMember[] = [];
-
-      const usernameSnapshot = await usersRef
-        .where('username', '==', query)
-        .limit(1)
-        .get();
-      usernameSnapshot.forEach(doc => {
-        const userData = doc.data();
-        foundUsers.push({
-          id: doc.id,
-          username: userData.username,
-          displayName: userData.displayName,
-          billIds: userData?.billIds,
-          totalSpent: userData?.totalSpent,
-          totalPaid: userData?.totalPaid,
-        });
-      });
-
-      if (foundUsers.length === 0) {
-        const displayNameSnapshot = await usersRef
-          .orderBy('displayName')
-          .startAt(query.charAt(0).toUpperCase() + query.slice(1))
-          .endAt(query.charAt(0).toUpperCase() + query.slice(1) + '\uf8ff')
-          .get();
-
-        displayNameSnapshot.forEach(doc => {
-          const userData = doc.data();
-          if (userData.displayName.toLowerCase().includes(query)) {
-            foundUsers.push({
-              id: doc.id,
-              username: userData.username,
-              displayName: userData.displayName,
-              billIds: userData?.billIds,
-              totalSpent: userData?.totalSpent,
-              totalPaid: userData?.totalPaid,
-            });
-          }
-        });
-      }
-
-      const uniqueFoundUsers = foundUsers.filter(
-        user =>
-          !selectedMembers.some(member => member.id === user.id) &&
-          currentUser?.id !== user.id
-      );
-
-      setSearchResults(uniqueFoundUsers);
+      
+      const excludeIds = [
+        ...selectedMembers.map(member => member.id),
+        ...(currentUser ? [currentUser.id] : [])
+      ];
+      
+      const foundUsers = await searchUsersByQuery(memberSearchQuery, excludeIds);
+      setSearchResults(foundUsers);
       setIsLoadingUsers(false);
     };
 
@@ -191,45 +99,37 @@ export default function HomeScreen() {
     return () => clearTimeout(handler);
   }, [memberSearchQuery, selectedMembers, currentUser]);
 
-  const createTrip = async () => {
+  const handleCreateTrip = async () => {
     if (!newTripName.trim()) {
       Alert.alert("We're going on a what?", 'Please enter a trip name.');
       return;
     }
+
     if (!currentUser) {
       Alert.alert('Fatal error', 'Current user data not loaded. Please try again.');
       return;
     }
-
-    const allMembers = [
-      currentUser,
-      ...selectedMembers.filter(member => member.id !== currentUser.id),
-    ].map(member => ({
-      uid: member.id,
-      username: member.username,
-      displayName: member.displayName,
-      billIds: [],
-      totalSpent: 0,
-      totalPaid: 0,
-    }));
 
     if (startDate > endDate) {
       Alert.alert('Time Travel Much?', 'It looks like your trip ends before it starts.');
       return;
     }
 
-    try {
-      const docRef = await firestore().collection('trips').add({
-        tripName: newTripName.trim(),
-        tripDescription: newTripDescription.trim(),
-        startDate: firestore.Timestamp.fromDate(startDate),
-        endDate: firestore.Timestamp.fromDate(endDate),
-        members: allMembers,
-        eventIds: [],
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        isConcluded: false,
-      });
+    const allMembers = [
+      currentUser,
+      ...selectedMembers.filter(member => member.id !== currentUser.id),
+    ];
 
+    try {
+      const tripId = await createTrip(
+        newTripName,
+        newTripDescription,
+        startDate,
+        endDate,
+        allMembers
+      );
+
+      // Reset form
       setNewTripName('');
       setNewTripDescription('');
       setSelectedMembers([]);
@@ -240,7 +140,7 @@ export default function HomeScreen() {
 
       router.push({
         pathname: '/trip-view',
-        params: { tripId: docRef.id },
+        params: { tripId },
       });
     } catch (error) {
       Alert.alert('Failed to create trip', 'Looks like we were not destined to join you on your trip. :C');
@@ -439,7 +339,7 @@ export default function HomeScreen() {
               <Text style={styles.cancelButton}>Cancel</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>New Trip</Text>
-            <TouchableOpacity onPress={createTrip}>
+            <TouchableOpacity onPress={handleCreateTrip}>
               <Text style={styles.createButton}>Create</Text>
             </TouchableOpacity>
           </View>
