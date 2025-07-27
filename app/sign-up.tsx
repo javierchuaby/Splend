@@ -1,11 +1,3 @@
-import { getApp } from '@react-native-firebase/app';
-import {
-  createUserWithEmailAndPassword,
-  getAuth,
-  signOut,
-  updateProfile,
-} from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import { Stack, useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { useState } from 'react';
@@ -20,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import styles from '../styles/SignUpScreenStyles';
+import { createUserAccount, isUsernameTaken } from './services/firestoreService';
 
 export default function SignUp() {
   const [displayName, setDisplayName] = useState('');
@@ -30,61 +23,32 @@ export default function SignUp() {
   const router = useRouter();
 
   const handleSignUp = async () => {
-    setLoading(true);
-    try {
-      // Step 1. Check if username already exists 
-      const usernameQuery = await firestore()
-        .collection('users')
-        .where('username', '==', username.toLowerCase())
-        .get();
-
-      if (!usernameQuery.empty) {
-        alert('This username is already taken.');
-        setLoading(false);
-        return;
-      }
-
-      // Step 2. Create account on Firebase Auth database
-      const app = getApp();
-      const auth = getAuth(app);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (user) {
-        // 3. Update Firebase Auth with display name
-        await updateProfile(user, {
-          displayName: displayName,
-        });
-
-        // 4. Store additional user data in Firestore collection "users"
-        await firestore().collection('users').doc(user.uid).set({
-          uid: user.uid,
-          email: user.email,
-          displayName: displayName,
-          username: username.toLowerCase(),
-          createdAt: firestore.FieldValue.serverTimestamp(), // kaypoh only
-        });
-      }
-
-      await signOut(auth); // Sign out after creating account
-      
-      router.push('/'); // Re-implemented this, because bugs occur when allowing the user in right after sign up
-    } catch (e: any) {
-      const err = e as FirebaseError;
-      // Common Firebase auth errors
-      if (err.code === 'auth/email-already-in-use') {
-        alert('The email address is already in use by another account.');
-      } else if (err.code === 'auth/invalid-email') {
-        alert('The email address is invalid.');
-      } else if (err.code === 'auth/weak-password') {
-        alert('Please choose a stronger password.');
-      } else {
-        alert('Registration failed: ' + err.message);
-      }
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const taken = await isUsernameTaken(username);
+    if (taken) {
+      alert('This username is already taken.');
+      return;
     }
-  };
+
+    await createUserAccount(email, password, displayName, username);
+    router.push('/');
+  } catch (e: any) {
+    const err = e as FirebaseError;
+    if (err.code === 'auth/email-already-in-use') {
+      alert('The email address is already in use by another account.');
+    } else if (err.code === 'auth/invalid-email') {
+      alert('The email address is invalid.');
+    } else if (err.code === 'auth/weak-password') {
+      alert('Please choose a stronger password.');
+    } else {
+      alert('Registration failed: ' + err.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <SafeAreaView style={styles.container}>
