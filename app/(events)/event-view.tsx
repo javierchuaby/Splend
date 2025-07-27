@@ -1,8 +1,8 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { Picker } from '@react-native-picker/picker';
-import axios from 'axios'; // Import Axios for HTTP requests
-import * as ImagePicker from 'expo-image-picker'; // Import Expo Image Picker
+import axios from 'axios';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -21,8 +21,7 @@ import {
 } from 'react-native';
 import styles from '../../styles/event-view-styles';
 
-// IMPORTANT: Replace with your backend server URL
-const BACKEND_URL = 'https://splend-backend-service-875743661995.asia-southeast1.run.app'; // Or your machine's IP if testing on a real device
+const BACKEND_URL = 'https://splend-backend-service-875743661995.asia-southeast1.run.app';
 
 interface TripMember {
   id: string;
@@ -70,7 +69,6 @@ interface MonthOption {
   value: number;
 }
 
-// Interface for AI parsed item
 interface AIParsedItem {
   name: string;
   price: number | string;
@@ -78,8 +76,14 @@ interface AIParsedItem {
 
 export default function EventViewScreen() {
   const router = useRouter();
-  const { eventId, tripId } = useLocalSearchParams();
+  const { eventId, tripId, origin } = useLocalSearchParams<{
+    eventId: string;
+    tripId?: string;
+    origin?: 'calendar';
+  }>();
+
   const [event, setEvent] = useState<Event | null>(null);
+  const [tripName, setTripName] = useState<string | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -111,7 +115,6 @@ export default function EventViewScreen() {
     { member: TripMember | null; amount: string; search: string; results: TripMember[] }[]
   >([]);
 
-  // State for receipt scanning
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
@@ -226,6 +229,31 @@ export default function EventViewScreen() {
     return unsubscribe;
   }, [eventId, currentUser]);
 
+  // New useEffect to fetch trip name
+  useEffect(() => {
+    // Only fetch trip name if tripId is provided AND origin is 'calendar'
+    // This ensures we only fetch trip name when the trip link should be shown.
+    if (!tripId || origin !== 'calendar') {
+      setTripName(null);
+      return;
+    }
+    const fetchTripName = async () => {
+      try {
+        const tripDoc = await firestore().collection('trips').doc(tripId).get();
+        if (tripDoc.exists()) {
+          setTripName(tripDoc.data()?.tripName || 'Unnamed Trip');
+        } else {
+          setTripName('Unknown Trip');
+        }
+      } catch (error) {
+        console.error('Error fetching trip name:', error);
+        setTripName('Unknown Trip');
+      }
+    };
+    fetchTripName();
+  }, [tripId, origin]); // Depend on origin as well
+
+
   const saveEvent = async (updatedFields: Partial<Event>) => {
     if (!event) return;
 
@@ -274,13 +302,18 @@ export default function EventViewScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await firestore().collection('events').doc(event.id).delete();
-              await firestore()
-                .collection('trips')
-                .doc(tripId as string)
-                .update({
-                  eventIds: firestore.FieldValue.arrayRemove(event.id),
-                });
+              const batch = firestore().batch();
+
+              const eventRef = firestore().collection('events').doc(event.id);
+              batch.delete(eventRef);
+
+              const tripRef = firestore().collection('trips').doc(tripId as string);
+              batch.update(tripRef, {
+                eventIds: firestore.FieldValue.arrayRemove(event.id),
+              });
+
+              await batch.commit();
+
               router.back();
             } catch (error) {
               Alert.alert('Error', 'Failed to delete event');
@@ -577,21 +610,30 @@ export default function EventViewScreen() {
         billIds: firestore.FieldValue.arrayUnion(billRef.id),
       });
 
-      const tripRef = firestore().collection('trips').doc(tripId as string);
-      const tripDoc = await tripRef.get();
-      if (tripDoc.exists()) {
-        const currentTripMembers = tripDoc.data()?.members || [];
-        const updatedTripMembers = currentTripMembers.map((member: any) => {
-          const newSpent = (member.totalSpent || 0) + (memberSpentUpdates[member.uid] || 0);
-          const newPaid = (member.totalPaid || 0) + (memberPaidUpdates[member.uid] || 0);
-          return {
-            ...member,
-            totalSpent: parseFloat(newSpent.toFixed(2)),
-            totalPaid: parseFloat(newPaid.toFixed(2)),
-          };
-        });
-        batch.update(tripRef, { members: updatedTripMembers });
+      // tripId check in `handleCreateBill`
+      // The `tripId` should always be available here if the event itself exists,
+      // as `eventId` is a required param. Even if `origin` isn't calendar,
+      // tripId is used in the bill creation context.
+      if (tripId) { // Add this check to be safe, though should be present
+          const tripRef = firestore().collection('trips').doc(tripId);
+          const tripDoc = await tripRef.get();
+          if (tripDoc.exists()) {
+              const currentTripMembers = tripDoc.data()?.members || [];
+              const updatedTripMembers = currentTripMembers.map((member: any) => {
+                  const newSpent = (member.totalSpent || 0) + (memberSpentUpdates[member.uid] || 0);
+                  const newPaid = (member.totalPaid || 0) + (memberPaidUpdates[member.uid] || 0);
+                  return {
+                      ...member,
+                      totalSpent: parseFloat(newSpent.toFixed(2)),
+                      totalPaid: parseFloat(newPaid.toFixed(2)),
+                  };
+              });
+              batch.update(tripRef, { members: updatedTripMembers });
+          }
+      } else {
+          console.warn("Trip ID not available when creating a bill. Member totals in trip will not be updated.");
       }
+
 
       await batch.commit();
 
@@ -625,11 +667,17 @@ export default function EventViewScreen() {
   );
 
   const handleEventViewBack = () => {
-    // router.replace({
-    //   pathname: '/trip-view',
-    //   params: { tripId: tripId },
-    // });
     router.back();
+  };
+
+  // New function to handle tapping the trip name in the header
+  const handleGoToTrip = () => {
+    if (tripId) { // Ensure tripId exists before navigating
+      router.replace({ // Always replace here as this is explicitly linking to parent trip
+        pathname: '/trip-view',
+        params: { tripId: tripId },
+      });
+    }
   };
 
   // --- RECEIPT SCANNING FUNCTIONS ---
@@ -639,10 +687,10 @@ export default function EventViewScreen() {
     setScanError(null);
     try {
       const response = await axios.post(`${BACKEND_URL}/process-receipt`, {
-        imageData: imageUri, // Already base64 with data URL header
+        imageData: imageUri,
       });
 
-      const { items } = response.data; // Expecting { items: [{ name, price }] }
+      const { items } = response.data;
 
       if (items && Array.isArray(items)) {
         const parsedItems: NewBillItemInput[] = items.map((item: AIParsedItem) => ({
@@ -654,18 +702,11 @@ export default function EventViewScreen() {
         }));
         setNewBillItems(parsedItems);
 
-        // Try to infer bill name from first few items
         if (items.length > 0 && !newBillName.trim()) {
             const billNames = items.slice(0, 3).map((item: AIParsedItem) => item.name);
             setNewBillName(`Receipt (${billNames.join(', ')})`);
         }
-        setNewBillDateTime(new Date()); // Set bill date to now
-
-        // Set who paid to current user by default with total amount
-        const totalAmount = items.reduce((sum: number, item: AIParsedItem) => {
-            const price = typeof item.price === 'number' ? item.price : parseFloat(String(item.price));
-            return sum + (isNaN(price) ? 0 : price);
-        }, 0);
+        setNewBillDateTime(new Date());
 
         setNewWhoPaid([]);
       } else {
@@ -686,7 +727,6 @@ export default function EventViewScreen() {
     let result;
     setScanError(null);
 
-    // Request permissions first
     if (method === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -706,9 +746,9 @@ export default function EventViewScreen() {
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           base64: true,
-          allowsEditing: true, // Allow user to crop/edit for better OCR
+          allowsEditing: true,
           aspect: [4, 3],
-          quality: 0.7, // Reduce quality for faster upload, balance with OCR quality
+          quality: 0.7,
         });
       } else {
         result = await ImagePicker.launchImageLibraryAsync({
@@ -723,7 +763,6 @@ export default function EventViewScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         if (asset.base64) {
-          // Construct data URL for OpenAI Vision API
           const base64Data = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
           processImageForChatGPT(base64Data);
         } else {
@@ -787,6 +826,18 @@ export default function EventViewScreen() {
           <TouchableOpacity onPress={handleEventViewBack}>
             <Text style={styles.backButton}>←</Text>
           </TouchableOpacity>
+
+          {/* New Conditional Trip Link: only rendered if origin is 'calendar' */}
+          {origin === 'calendar' ? (
+            <TouchableOpacity onPress={handleGoToTrip} style={styles.tripLinkContainer}>
+              <Text style={styles.tripLinkText}>from </Text>
+              <Text style={styles.tripLinkName}>{tripName}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.placeholder} /> // Always render placeholder if link not shown
+          )}
+          {/* End New Conditional Trip Link */}
+
           <TouchableOpacity onPress={() => setIsManageEventModalVisible(true)}>
             <Text style={styles.manageEventButtonText}>Manage</Text>
           </TouchableOpacity>
@@ -893,7 +944,7 @@ export default function EventViewScreen() {
               setNewBillDateTime(new Date());
               setNewBillItems([]);
               setNewWhoPaid([]);
-              setScanError(null); // Clear scan errors on modal open
+              setScanError(null);
             }}
           >
             <Text style={styles.createBillButtonText}>+ Create New Bill</Text>

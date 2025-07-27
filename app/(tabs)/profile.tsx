@@ -217,12 +217,12 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sign Out & Delete Account Buttons */}
+      {/* Big Red Buttons */}
       <View style={styles.signOutContainer}>
         <SignOutButton />
-        {/* NEW DELETE ACCOUNT BUTTON */}
+        {/* Delete Account Button */}
         <TouchableOpacity
-          style={styles.deleteAccountButton} // Apply specific style
+          style={styles.deleteAccountButton}
           onPress={handleDeleteAccount}
         >
           <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
@@ -233,7 +233,7 @@ export default function ProfileScreen() {
         visible={isModalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setIsModalVisible(false)} // Allow dismissing with swipe down on iOS
+        onRequestClose={() => setIsModalVisible(false)} 
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>

@@ -1,7 +1,8 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import styles from '../../styles/CalendarScreenStyles';
 
@@ -15,12 +16,7 @@ enum EventType {
   TRIP = 'trip',
   OTHER = 'other',
 }
-interface UserProfile {
-  uid: string;
-  displayName?: string;
-  username?: string;
-  email?: string;
-}
+
 interface Event {
   id: string;
   title: string;
@@ -32,88 +28,66 @@ interface Event {
   organizerId?: string;
   status?: EventStatus;
   type?: EventType;
+  tripId: string; // Now mandatory for new events, assuming old ones are migrated or handled.
   [key: string]: any;
 }
 
-const userCache: Record<string, UserProfile> = {};
+interface TripDisplay {
+  tripId: string;
+  tripName: string; // We'll fetch this dynamically
+  events: Event[];
+}
+
+// Simple cache for trip names to avoid redundant Firestore reads
+const tripNameCache: Record<string, string> = {};
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
-  const [events, setEvents] = useState<Event[]>([]);
+  const [eventsByTrip, setEventsByTrip] = useState<TripDisplay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [participantNames, setParticipantNames] = useState<string[]>([]);
-
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
-    const fetchNames = async () => {
-      if (!selectedEvent?.participants || selectedEvent.participants.length === 0) {
-        setParticipantNames([]);
-        return;
-      }
-      try {
-        const uids = selectedEvent.participants;
-        const names: string[] = [];
-        const uncached: string[] = [];
-        uids.forEach(uid => {
-          if (userCache[uid]) {
-            names.push(userCache[uid].displayName || userCache[uid].username || userCache[uid].uid);
-          } else {
-            uncached.push(uid);
-          }
-        });
-        for (let i = 0; i < uncached.length; i += 10) {
-          const batch = uncached.slice(i, i + 10);
-          const querySnapshot = await firestore()
-            .collection('users')
-            .where(firestore.FieldPath.documentId(), 'in', batch)
-            .get();
-          querySnapshot.forEach(doc => {
-            const data = doc.data();
-            userCache[doc.id] = { uid: doc.id, ...data };
-            names.push(data.displayName || data.username || doc.id);
-          });
-        }
-        names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-        setParticipantNames(names);
-      } catch (err) {
-        setParticipantNames(selectedEvent.participants);
-      }
-    };
-    if (selectedEvent && modalVisible) {
-      fetchNames();
-    }
-  }, [selectedEvent, modalVisible]);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchAndOrganizeEvents = async () => {
       const user = auth().currentUser;
       if (!user) {
-        setEvents([]);
+        setEventsByTrip([]);
         setLoading(false);
         return;
       }
-      const unsubscribe = firestore()
+
+      setLoading(true);
+
+      const unsubscribeEvents = firestore()
         .collection('events')
         .where('memberIds', 'array-contains', user.uid)
         .onSnapshot(
-          snapshot => {
-            const fetchedEvents: Event[] = snapshot.docs.map(doc => {
+          async snapshot => {
+            const fetchedEvents: Event[] = [];
+            const uniqueTripIds: Set<string> = new Set();
+            const eventsByTripId: { [key: string]: Event[] } = {};
+
+            snapshot.docs.forEach(doc => {
               const data = doc.data();
               let date = '';
               let time = '';
               let start = data.startDateTime;
 
-              if (start && typeof start === 'object' && typeof start.toDate === 'function') {
+              // Robustly handle different date formats from Firestore
+              if (
+                start &&
+                typeof start === 'object' &&
+                typeof start.toDate === 'function'
+              ) {
                 const jsDate = start.toDate();
                 date = jsDate.toISOString().slice(0, 10); // YYYY-MM-DD
                 time = jsDate.toTimeString().slice(0, 5); // HH:MM
-              }
-
-              else if (typeof start === 'string') {
-                const match = start.match(/^(\d{1,2}) (\w+) (\d{4}) at (\d{2}):(\d{2})/);
+              } else if (typeof start === 'string') {
+                // Keep this fallback for legacy data, but aim for Timestamps
+                const match = start.match(
+                  /^(\d{1,2}) (\w+) (\d{4}) at (\d{2}):(\d{2})/
+                );
                 if (match) {
                   const day = match[1].padStart(2, '0');
                   const monthStr = match[2];
@@ -124,44 +98,104 @@ export default function CalendarScreen() {
                     'January', 'February', 'March', 'April', 'May', 'June',
                     'July', 'August', 'September', 'October', 'November', 'December'
                   ];
-                  const month = (monthNames.indexOf(monthStr) + 1).toString().padStart(2, '0');
+                  const month = (monthNames.indexOf(monthStr) + 1)
+                    .toString()
+                    .padStart(2, '0');
                   date = `${year}-${month}-${day}`;
                   time = `${hour}:${minute}`;
                 }
               }
 
-              return {
-                id: doc.id,
-                title: data.eventName || '(No Title)',
-                date,
-                time,
-                participants: data.memberIds || [],
-                ...data,
-              };
+              // IMPORTANT: Ensure tripId exists for the event to be displayed
+              // If it's undefined, it means old events without tripId won't be grouped.
+              // Consider a data migration script for existing events if needed.
+              const eventTripId = data.tripId as string | undefined;
+
+              if (eventTripId) {
+                const event: Event = {
+                  id: doc.id,
+                  title: data.eventName || '(No Title)',
+                  date,
+                  time,
+                  participants: data.memberIds || [],
+                  tripId: eventTripId,
+                  ...data,
+                };
+                fetchedEvents.push(event);
+                uniqueTripIds.add(eventTripId);
+                if (!eventsByTripId[eventTripId]) {
+                  eventsByTripId[eventTripId] = [];
+                }
+                eventsByTripId[eventTripId].push(event);
+              } else {
+                // Log or handle events without a tripId if they are expected
+                console.warn(`Event ${doc.id} found without a tripId. It will not be displayed in trip-grouped calendar.`);
+              }
             });
-            setEvents(fetchedEvents);
+
+            // Fetch trip names for unique tripIds
+            const currentTripNames: { [key: string]: string } = {};
+            const tripIdsToFetch: string[] = [];
+
+            Array.from(uniqueTripIds).forEach(id => {
+              if (tripNameCache[id]) {
+                currentTripNames[id] = tripNameCache[id];
+              } else {
+                tripIdsToFetch.push(id);
+              }
+            });
+
+            // Fetch missing trip names in batches
+            if (tripIdsToFetch.length > 0) {
+              for (let i = 0; i < tripIdsToFetch.length; i += 10) {
+                const batchIds = tripIdsToFetch.slice(i, i + 10);
+                const tripNameSnapshot = await firestore()
+                  .collection('trips')
+                  .where(firestore.FieldPath.documentId(), 'in', batchIds)
+                  .get();
+
+                tripNameSnapshot.forEach(doc => {
+                  const data = doc.data();
+                  const name = data.tripName || 'Untitled Trip';
+                  currentTripNames[doc.id] = name;
+                  tripNameCache[doc.id] = name; // Cache the name
+                });
+              }
+            }
+
+            // Organize into final display structure
+            const organizedData: TripDisplay[] = Array.from(uniqueTripIds)
+              .map(tripId => ({
+                tripId: tripId,
+                tripName: currentTripNames[tripId] || 'Unknown Trip',
+                events: eventsByTripId[tripId] || [], // Should not be empty based on logic above
+              }))
+              .sort((a, b) => a.tripName.localeCompare(b.tripName)); // Sort trips alphabetically
+
+            setEventsByTrip(organizedData);
             setLoading(false);
           },
           error => {
-            console.error('Error fetching events:', error);
-            setEvents([]);
+            console.error('Error fetching events or trip names:', error);
+            setEventsByTrip([]);
             setLoading(false);
           }
         );
 
-      return () => unsubscribe();
+      return () => unsubscribeEvents();
     };
 
-    fetchEvents();
-  }, []);
-
+    fetchAndOrganizeEvents();
+  }, []); // Depend on nothing as the listener handles updates
 
   const markedDates = useMemo(() => {
     const marked: { [date: string]: any } = {};
-    events.forEach(event => {
-      if (event.date) {
-        marked[event.date] = { marked: true, dotColor: '#305cde' };
-      }
+    eventsByTrip.forEach(trip => {
+      trip.events.forEach(event => {
+        if (event.date) {
+          marked[event.date] = { marked: true, dotColor: '#305cde' };
+        }
+      });
     });
     marked[selectedDate] = {
       ...(marked[selectedDate] || {}),
@@ -170,36 +204,70 @@ export default function CalendarScreen() {
       selectedTextColor: '#fff',
     };
     return marked;
-  }, [events, selectedDate]);
+  }, [eventsByTrip, selectedDate]);
 
-  const eventsForSelectedDate = useMemo(
-    () => events.filter(event => event.date === selectedDate),
-    [events, selectedDate]
+  const organizedEventsForSelectedDate = useMemo(() => {
+    return eventsByTrip
+      .map(trip => ({
+        tripId: trip.tripId,
+        tripName: trip.tripName,
+        events: trip.events
+          .filter(event => event.date === selectedDate)
+          .sort((a, b) => a.time.localeCompare(b.time)), // Sort events within a trip by time
+      }))
+      .filter(trip => trip.events.length > 0) // Only show trips that have events on the selected date
+      .sort((a, b) => a.tripName.localeCompare(b.tripName)); // Sort trips by name
+  }, [eventsByTrip, selectedDate]);
+
+  const EventListItem = React.memo(
+    ({ event, onPress }: { event: Event; onPress: (e: Event) => void }) => (
+      <TouchableOpacity
+        style={styles.eventItem}
+        onPress={() => onPress(event)}
+        accessibilityRole="button"
+        accessibilityLabel={`Event: ${event.title}, at ${event.time}`}
+      >
+        <Text style={styles.eventTitle}>{event.title}</Text>
+        <Text style={styles.eventTime}>{event.time}</Text>
+      </TouchableOpacity>
+    )
   );
 
+  const handleEventPress = useCallback(
+    (event: Event) => {
+      // tripId is now guaranteed on Event interface for new events,
+      // and expected to be present for any event fetched/displayed.
+      if (event.id && event.tripId) {
+        router.push({
+          pathname: '/event-view',
+          params: { eventId: event.id, tripId: event.tripId, origin: 'calendar' },
+        });
+      } else {
+        console.warn(
+          'Cannot navigate to EventView: Event ID or Trip ID is missing (this should not happen with new events).',
+          event
+        );
+      }
+    },
+    [router]
+  );
 
-  const EventListItem = React.memo(({ event, onPress }: { event: Event; onPress: (e: Event) => void }) => (
-    <TouchableOpacity
-      style={styles.eventItem}
-      onPress={() => onPress(event)}
-      accessibilityRole="button"
-      accessibilityLabel={`Event: ${event.title}, at ${event.time}`}
-    >
-      <Text style={styles.eventTitle}>{event.title}</Text>
-      <Text style={styles.eventTime}>{event.time}</Text>
-    </TouchableOpacity>
-  ));
-
-  const handleEventPress = useCallback((event: Event) => {
-    setSelectedEvent(event);
-    setModalVisible(true);
-  }, []);
-
-
-  const handleCloseModal = useCallback(() => {
-    setModalVisible(false);
-    setSelectedEvent(null);
-  }, []);
+  const renderTripSection = ({ item }: { item: TripDisplay }) => (
+    <View style={styles.tripSection}>
+      <Text style={styles.tripHeader}>{item.tripName}</Text>
+      <FlatList
+        data={item.events}
+        keyExtractor={eventItem => eventItem.id}
+        renderItem={({ item: eventItem }) => (
+          <EventListItem event={eventItem} onPress={handleEventPress} />
+        )}
+        scrollEnabled={false} // Prevents nested scrolling issues
+        ListEmptyComponent={
+          <Text style={styles.noEvents}>No events for this trip on this day.</Text>
+        }
+      />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -228,17 +296,15 @@ export default function CalendarScreen() {
         </Text>
         {loading ? (
           <ActivityIndicator color="#305cde" style={{ marginTop: 32 }} />
-        ) : eventsForSelectedDate.length === 0 ? (
+        ) : organizedEventsForSelectedDate.length === 0 ? (
           <Text style={styles.noEvents} accessibilityLabel="No events for this day.">
             No events for this day.
           </Text>
         ) : (
           <FlatList
-            data={eventsForSelectedDate}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <EventListItem event={item} onPress={handleEventPress} />
-            )}
+            data={organizedEventsForSelectedDate}
+            keyExtractor={item => item.tripId}
+            renderItem={renderTripSection}
             initialNumToRender={8}
             maxToRenderPerBatch={10}
             windowSize={7}
@@ -248,75 +314,6 @@ export default function CalendarScreen() {
           />
         )}
       </View>
-
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCloseModal}
-      >
-        <TouchableWithoutFeedback onPress={handleCloseModal} accessible={false}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent} accessible accessibilityLabel="Event details modal">
-                <ScrollView>
-                  <Text style={styles.modalTitle}>{selectedEvent?.title}</Text>
-                  <Text style={styles.modalLabel}>Date:</Text>
-                  <Text style={styles.modalValue}>
-                    {selectedEvent?.date
-                      ? new Intl.DateTimeFormat(undefined, {
-                          weekday: 'long',
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        }).format(new Date(selectedEvent.date))
-                      : ''}
-                  </Text>
-                  <Text style={styles.modalLabel}>Time:</Text>
-                  <Text style={styles.modalValue}>{selectedEvent?.time}</Text>
-                  {selectedEvent?.eventLocation && (
-                    <>
-                      <Text style={styles.modalLabel}>Location:</Text>
-                      <Text style={styles.modalValue}>
-                        {Array.isArray(selectedEvent.eventLocation)
-                          ? selectedEvent.eventLocation.join(', ')
-                          : typeof selectedEvent.eventLocation === 'object'
-                          ? JSON.stringify(selectedEvent.eventLocation)
-                          : String(selectedEvent.eventLocation)}
-                      </Text>
-                    </>
-                  )}
-                  <Text style={styles.modalLabel}>Participants:</Text>
-                  {participantNames.length > 0 ? (
-                    <Text style={styles.modalValue} accessibilityLabel="Participant list">
-                      {participantNames.join('\n')}
-                    </Text>
-                  ) : (
-                    <Text style={styles.noEvents} accessibilityLabel="No participants for this event.">
-                      No participants for this event.
-                    </Text>
-                  )}
-                  {selectedEvent?.description && (
-                    <>
-                      <Text style={styles.modalLabel}>Description:</Text>
-                      <Text style={styles.modalValue}>{selectedEvent.description}</Text>
-                    </>
-                  )}
-                  {selectedEvent?.organizerId && (
-                    <>
-                      <Text style={styles.modalLabel}>Organizer:</Text>
-                      <Text style={styles.modalValue}>{selectedEvent.organizerId}</Text>
-                    </>
-                  )}
-                </ScrollView>
-                <Pressable style={styles.closeButton} onPress={handleCloseModal} accessibilityRole="button" accessibilityLabel="Close event details">
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </View>
   );
 }
