@@ -1,12 +1,31 @@
 module.exports = {
   preset: 'jest-expo',
-  transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest'
-  },
-  transformIgnorePatterns: [
-    'node_modules/(?!(jest-)?react-native|@react-native|@react-navigation|expo(nent)?|@expo(nent)?|@unimodules|unimodules|@react-native-community|@react-native-firebase)'
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testMatch: [
+    '**/__tests__/**/*.(ts|tsx|js)',
+    '**/*.(test|spec).(ts|tsx|js)',
+    '**/tests/**/*.(test|spec).(ts|tsx|js)'
   ],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setupTests.ts'],
-  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
+  collectCoverageFrom: [
+    '**/*.{ts,tsx}',
+    '!**/*.d.ts',
+    '!**/coverage/**',
+    '!**/node_modules/**',
+    '!**/babel.config.js',
+    '!**/jest.setup.js'
+  ],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  transform: {
+    '^.+\\.(js|ts|tsx)$': 'babel-jest'
+  },
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.expo/'],
+  moduleNameMapping: {
+    '^@/(.*)$': '<rootDir>/$1'
+  },
+  globals: {
+    'process.env': {
+      EXPO_OS: 'ios',
+      NODE_ENV: 'test'
+    }
+  }
 };
