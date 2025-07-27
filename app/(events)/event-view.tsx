@@ -680,8 +680,6 @@ export default function EventViewScreen() {
       setNewBillItems([]);
       setNewWhoPaid([]);
       setIsNewBillModalVisible(false);
-
-      Alert.alert('Success!', 'Bill created and member totals updated.');
     } catch (error) {
       Alert.alert('Error', 'Failed to create bill or update member totals.');
       console.error(error);
