@@ -240,7 +240,7 @@ export default function CalendarScreen() {
       if (event.id && event.tripId) {
         router.push({
           pathname: '/event-view',
-          params: { eventId: event.id, tripId: event.tripId },
+          params: { eventId: event.id, tripId: event.tripId, origin: 'calendar' },
         });
       } else {
         console.warn(

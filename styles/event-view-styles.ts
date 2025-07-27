@@ -517,4 +517,23 @@ export default StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
+  tripLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1, // Allows text to wrap
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#333', // Subtle background for the link
+    // Adjust margin if needed
+  },
+  tripLinkText: {
+    color: '#ccc',
+    fontSize: 14,
+  },
+  tripLinkName: {
+    color: '#0a84ff', // Accent color for the trip name
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 });
