@@ -45,6 +45,8 @@ interface Event {
   endDateTime: Date;
   memberIds: string[];
   billIds: string[];
+  // Add tripId here to reflect the change in schema for newly created events
+  tripId?: string;
 }
 
 interface MonthOption {
@@ -173,6 +175,7 @@ export default function TripViewScreen() {
                   endDateTime: eventData.endDateTime.toDate(),
                   memberIds: eventData.memberIds,
                   billIds: eventData.billIds,
+                  tripId: eventData.tripId, // Ensure existing events also have tripId
                 };
               });
               setEvents(fetchedEvents);
@@ -271,6 +274,7 @@ export default function TripViewScreen() {
         endDateTime: firestore.Timestamp.fromDate(newEventEndDate),
         memberIds: eventMemberUids,
         billIds: [],
+        tripId: trip.id, // <--- ADDED THIS LINE
       });
 
       await firestore()
@@ -504,6 +508,7 @@ export default function TripViewScreen() {
             style={styles.createEventButton}
             onPress={() => {
               setIsModalVisible(true);
+              // Ensure currentUser is added to selectedEventMembers by default
               if (currentUser) {
                 setSelectedEventMembers([currentUser]);
               }
