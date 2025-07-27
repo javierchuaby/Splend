@@ -52,6 +52,10 @@ export default function HomeScreen() {
     'active'
   );
 
+  // New budget states
+  const [groupBudget, setGroupBudget] = useState('');
+  const [individualBudget, setIndividualBudget] = useState('');
+
   useEffect(() => {
     const unsubscribe = listenToCurrentUser((userData) => {
       setCurrentUser(userData);
@@ -120,22 +124,53 @@ export default function HomeScreen() {
       ...selectedMembers.filter(member => member.id !== currentUser.id),
     ];
 
+    // Validate budget inputs
+    const parsedGroupBudget = parseFloat(groupBudget);
+    const parsedIndividualBudget = parseFloat(individualBudget);
+
+    if (groupBudget.trim() !== '' && (isNaN(parsedGroupBudget) || parsedGroupBudget < 0)) {
+        Alert.alert('Invalid Budget', 'Please enter a valid positive number for Group Budget.');
+        return;
+    }
+    if (individualBudget.trim() !== '' && (isNaN(parsedIndividualBudget) || parsedIndividualBudget < 0)) {
+        Alert.alert('Invalid Budget', 'Please enter a valid positive number for Individual Budget.');
+        return;
+    }
+
+    // Construct the budget object
+    const budgetsToSave: { group?: number; individual?: { uid: string; indivBudget: number }[] } = {};
+    if (!isNaN(parsedGroupBudget) && parsedGroupBudget >= 0) {
+        budgetsToSave.group = parseFloat(parsedGroupBudget.toFixed(2));
+    }
+    if (!isNaN(parsedIndividualBudget) && parsedIndividualBudget >= 0 && currentUser) {
+        budgetsToSave.individual = [{ uid: currentUser.id, indivBudget: parseFloat(parsedIndividualBudget.toFixed(2)) }];
+    } else if (isNaN(parsedIndividualBudget) && individualBudget.trim() !== '') {
+         // This case should be caught by the earlier validation, but as a safeguard
+        Alert.alert('Error', 'Could not set individual budget. Please check the value.');
+        return;
+    }
+
+
     try {
       const tripId = await createTrip(
         newTripName,
         newTripDescription,
         startDate,
         endDate,
-        allMembers
+        allMembers,
+        // Pass budgets to createTrip function if they exist
+        Object.keys(budgetsToSave).length > 0 ? budgetsToSave : null // Pass null if no budgets are set
       );
 
-      // Reset form
+      // Reset form including new budget fields
       setNewTripName('');
       setNewTripDescription('');
       setSelectedMembers([]);
       setMemberSearchQuery('');
       setStartDate(new Date());
       setEndDate(new Date());
+      setGroupBudget('');       // Reset budget fields
+      setIndividualBudget('');  // Reset budget fields
       setIsModalVisible(false);
 
       router.push({
@@ -303,6 +338,9 @@ export default function HomeScreen() {
             if (currentUser) {
               setSelectedMembers([currentUser]);
             }
+            // Reset budget fields when opening modal
+            setGroupBudget('');
+            setIndividualBudget('');
           }}
         >
           <Text style={styles.newTripButtonText}>+ New Trip</Text>
@@ -475,6 +513,40 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
+
+              {/* NEW: Set Budget Section */}
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Set Budget (Optional)</Text>
+                <View style={styles.budgetInputContainer}>
+                  <Text style={styles.budgetLabel}>Group Budget ($)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={groupBudget}
+                    onChangeText={text => setGroupBudget(text.replace(/[^0-9.]/g, ''))} // Allow only numbers and one decimal
+                    placeholder="e.g., 1000.00"
+                    placeholderTextColor="#777"
+                    keyboardType="numeric"
+                    keyboardAppearance="dark"
+                  />
+                </View>
+                {currentUser && ( // Only show individual budget if current user is available
+                    <View style={styles.budgetInputContainer}>
+                        <Text style={styles.budgetLabel}>My Individual Budget ($)</Text>
+                        <TextInput
+                            style={styles.textInput}
+                            value={individualBudget}
+                            onChangeText={text => setIndividualBudget(text.replace(/[^0-9.]/g, ''))} // Allow only numbers and one decimal
+                            placeholder="e.g., 200.00"
+                            placeholderTextColor="#777"
+                            keyboardType="numeric"
+                            keyboardAppearance="dark"
+                        />
+                    </View>
+                )}
+              </View>
+              {/* END NEW: Set Budget Section */}
+
+
             </ScrollView>
           </KeyboardAvoidingView>
 

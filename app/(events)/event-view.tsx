@@ -32,6 +32,22 @@ interface TripMember {
   totalPaid: number;
 }
 
+// Define the Trip interface here (or import if it's in a shared file)
+interface Trip {
+  id: string;
+  name: string; // Corresponds to tripName in Firestore
+  members: TripMember[];
+  startDate: Date;
+  endDate: Date;
+  createdAt: Date;
+  tripDescription: string;
+  isConcluded: boolean; // This is the crucial property
+  eventIds: string[];
+  // Assuming budgets might also be on the Trip object if you use them here
+  budgets?: { group?: number; individual?: { uid: string; indivBudget: number }[] };
+}
+
+
 interface Event {
   id: string;
   name: string;
@@ -83,6 +99,7 @@ export default function EventViewScreen() {
   }>();
 
   const [event, setEvent] = useState<Event | null>(null);
+  const [trip, setTrip] = useState<Trip | null>(null); // State for the full Trip object
   const [tripName, setTripName] = useState<string | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -229,29 +246,54 @@ export default function EventViewScreen() {
     return unsubscribe;
   }, [eventId, currentUser]);
 
-  // New useEffect to fetch trip name
+  // Combined useEffect to fetch trip details (name and isConcluded status)
   useEffect(() => {
-    // Only fetch trip name if tripId is provided AND origin is 'calendar'
-    // This ensures we only fetch trip name when the trip link should be shown.
-    if (!tripId || origin !== 'calendar') {
+    if (!tripId) {
+      setTrip(null); // Ensure trip state is null if no tripId
       setTripName(null);
       return;
     }
-    const fetchTripName = async () => {
-      try {
-        const tripDoc = await firestore().collection('trips').doc(tripId).get();
-        if (tripDoc.exists()) {
-          setTripName(tripDoc.data()?.tripName || 'Unnamed Trip');
-        } else {
-          setTripName('Unknown Trip');
+    const unsubscribeTrip = firestore()
+      .collection('trips')
+      .doc(tripId)
+      .onSnapshot(
+        doc => {
+          if (doc.exists()) {
+            const data = doc.data();
+            const fetchedTrip: Trip = {
+              id: doc.id,
+              name: data!.tripName,
+              members: data!.members.map((member: any) => ({
+                id: member.uid,
+                username: member.username,
+                displayName: member.displayName,
+                billIds: member.billIds || [],
+                totalSpent: member.totalSpent || 0,
+                totalPaid: member.totalPaid || 0,
+              })),
+              startDate: data!.startDate.toDate(),
+              endDate: data!.endDate.toDate(),
+              createdAt: data!.createdAt?.toDate() ?? new Date(),
+              tripDescription: data!.tripDescription || '',
+              isConcluded: data!.isConcluded || false,
+              eventIds: data!.eventIds || [],
+              budgets: data!.budgets || undefined, // Include budgets here too if needed
+            };
+            setTrip(fetchedTrip);
+            setTripName(fetchedTrip.name);
+          } else {
+            setTrip(null);
+            setTripName(null);
+          }
+        },
+        error => {
+          console.error('Error fetching trip details:', error);
+          setTrip(null);
+          setTripName(null);
         }
-      } catch (error) {
-        console.error('Error fetching trip name:', error);
-        setTripName('Unknown Trip');
-      }
-    };
-    fetchTripName();
-  }, [tripId, origin]); // Depend on origin as well
+      );
+    return unsubscribeTrip;
+  }, [tripId]);
 
 
   const saveEvent = async (updatedFields: Partial<Event>) => {
@@ -610,11 +652,7 @@ export default function EventViewScreen() {
         billIds: firestore.FieldValue.arrayUnion(billRef.id),
       });
 
-      // tripId check in `handleCreateBill`
-      // The `tripId` should always be available here if the event itself exists,
-      // as `eventId` is a required param. Even if `origin` isn't calendar,
-      // tripId is used in the bill creation context.
-      if (tripId) { // Add this check to be safe, though should be present
+      if (tripId) {
           const tripRef = firestore().collection('trips').doc(tripId);
           const tripDoc = await tripRef.get();
           if (tripDoc.exists()) {
@@ -642,8 +680,6 @@ export default function EventViewScreen() {
       setNewBillItems([]);
       setNewWhoPaid([]);
       setIsNewBillModalVisible(false);
-
-      Alert.alert('Success!', 'Bill created and member totals updated.');
     } catch (error) {
       Alert.alert('Error', 'Failed to create bill or update member totals.');
       console.error(error);
@@ -670,17 +706,14 @@ export default function EventViewScreen() {
     router.back();
   };
 
-  // New function to handle tapping the trip name in the header
   const handleGoToTrip = () => {
-    if (tripId) { // Ensure tripId exists before navigating
-      router.replace({ // Always replace here as this is explicitly linking to parent trip
+    if (tripId) {
+      router.replace({
         pathname: '/trip-view',
         params: { tripId: tripId },
       });
     }
   };
-
-  // --- RECEIPT SCANNING FUNCTIONS ---
 
   const processImageForChatGPT = async (imageUri: string) => {
     setIsScanningReceipt(true);
@@ -775,8 +808,6 @@ export default function EventViewScreen() {
     }
   };
 
-  // --- END RECEIPT SCANNING FUNCTIONS ---
-
   if (isLoading) {
     return (
       <>
@@ -827,16 +858,14 @@ export default function EventViewScreen() {
             <Text style={styles.backButton}>←</Text>
           </TouchableOpacity>
 
-          {/* New Conditional Trip Link: only rendered if origin is 'calendar' */}
-          {origin === 'calendar' ? (
+          {origin === 'calendar' && tripId && tripName ? (
             <TouchableOpacity onPress={handleGoToTrip} style={styles.tripLinkContainer}>
               <Text style={styles.tripLinkText}>from </Text>
               <Text style={styles.tripLinkName}>{tripName}</Text>
             </TouchableOpacity>
           ) : (
-            <View style={styles.placeholder} /> // Always render placeholder if link not shown
+            <View style={styles.placeholder} />
           )}
-          {/* End New Conditional Trip Link */}
 
           <TouchableOpacity onPress={() => setIsManageEventModalVisible(true)}>
             <Text style={styles.manageEventButtonText}>Manage</Text>
@@ -935,21 +964,24 @@ export default function EventViewScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.bottomButtonContainer}>
-          <TouchableOpacity
-            style={styles.createBillButton}
-            onPress={() => {
-              setIsNewBillModalVisible(true);
-              setNewBillName('');
-              setNewBillDateTime(new Date());
-              setNewBillItems([]);
-              setNewWhoPaid([]);
-              setScanError(null);
-            }}
-          >
-            <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Conditional rendering of Create New Bill section, so that it doesn't appear in concluded events!!! */}
+        {trip && !trip.isConcluded && (
+          <View style={styles.bottomButtonContainer}>
+            <TouchableOpacity
+              style={styles.createBillButton}
+              onPress={() => {
+                setIsNewBillModalVisible(true);
+                setNewBillName('');
+                setNewBillDateTime(new Date());
+                setNewBillItems([]);
+                setNewWhoPaid([]);
+                setScanError(null);
+              }}
+            >
+              <Text style={styles.createBillButtonText}>+ Create New Bill</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Modal
           visible={isManageEventModalVisible}
@@ -1168,7 +1200,6 @@ export default function EventViewScreen() {
               style={{ flex: 1 }}
             >
               <ScrollView style={styles.modalContent}>
-                {/* Scan Receipt Section */}
                 <View style={styles.inputSection}>
                     <Text style={styles.inputLabel}>Scan Receipt (Beta)</Text>
                     <View style={styles.scanButtonsContainer}>

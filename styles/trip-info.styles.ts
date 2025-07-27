@@ -176,13 +176,13 @@ export default StyleSheet.create({
     marginVertical: 12,
   },
   settlementButtonCompact: {
-    backgroundColor: '#FF9500',
+    backgroundColor: '#0a84ff',
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: 'center',
     marginBottom: 8,
-    shadowColor: '#FF9500',
+    shadowColor: '#0a84ff',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -352,5 +352,71 @@ export default StyleSheet.create({
     fontWeight: '600',
     color: '#ff453a',
     letterSpacing: 0.2,
+  },
+  budgetSuffix: {
+    fontSize: 14,
+    color: '#888',
+    fontWeight: 'normal',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    backgroundColor: '#1e1e1e', 
+  },
+  cancelButton: {
+    color: '#0a84ff', 
+    fontSize: 16,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  createButton: { 
+    color: '#0a84ff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  scrollViewContentContainer: {
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  inputSection: {
+    marginBottom: 20, 
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: '#eee',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  textInput: {
+    backgroundColor: '#282828',
+    color: '#fff',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  budgetInputContainer: {
+    marginBottom: 10,
+  },
+  budgetLabel: {
+    fontSize: 15,
+    color: '#bbb',
+    marginBottom: 5,
   },
 });
