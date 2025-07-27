@@ -11,11 +11,8 @@ import type {
 } from '../../components/BillSettlementManager';
 
 import {
-  // @ts-ignore
   calculateMaxPossibleTransactions,
-  // @ts-ignore: You might need to export these for test access
   calculateUserBalances,
-  // @ts-ignore
   optimiseSettlements
 } from '../../components/BillSettlementManager';
 
@@ -46,8 +43,8 @@ describe('Bill Settlement Logic', () => {
   test('calculateUserBalances returns correct net balances', () => {
     const balances = calculateUserBalances(mockBills, mockTripMembers);
     expect(balances).toEqual([
-      expect.objectContaining({ userId: 'u1', netBalance: 1000 }),  // Paid 2000 cents, owed 1000
-      expect.objectContaining({ userId: 'u2', netBalance: -1000 })  // Paid 0, owed 1000
+      expect.objectContaining({ userId: 'u1', netBalance: 1000 }),
+      expect.objectContaining({ userId: 'u2', netBalance: -1000 })
     ]);
   });
 

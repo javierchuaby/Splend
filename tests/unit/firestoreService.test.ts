@@ -23,7 +23,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   const mockOnSnapshot = jest.fn();
   const mockDoc = jest.fn();
 
-  // Chain mock methods
   mockWhere.mockReturnValue({ get: mockGet, limit: mockLimit });
   mockLimit.mockReturnValue({ get: mockGet });
   mockOrderBy.mockReturnValue({ 
@@ -60,7 +59,6 @@ jest.mock('@react-native-firebase/firestore', () => {
   mockFirestore.FieldValue = data.FieldValue;
   mockFirestore.Timestamp = data.Timestamp;
   
-  // Store references for test access
   mockFirestore.mockGet = mockGet;
   mockFirestore.mockAdd = mockAdd;
   mockFirestore.mockWhere = mockWhere;
@@ -85,7 +83,6 @@ describe('Firestore Service', () => {
     jest.clearAllMocks();
   });
 
-  // Existing tests
   describe('Sign Up', () => {
     it('isUsernameTaken returns true if username exists', async () => {
       (firestore as any).mockGet.mockResolvedValue({ empty: false });
@@ -101,7 +98,6 @@ describe('Firestore Service', () => {
     });
   });
 
-  // New tests for refactored functionality
   describe('searchUsersByQuery', () => {
     it('returns empty array if query is empty', async () => {
       const results = await searchUsersByQuery('');
@@ -120,7 +116,6 @@ describe('Firestore Service', () => {
         totalPaid: 25
       };
 
-      // Mock exact username match
       (firestore as any).mockGet.mockResolvedValueOnce({
         forEach: (cb: any) => cb({
           id: 'user1',
@@ -159,12 +154,10 @@ describe('Firestore Service', () => {
         }
       ];
 
-      // Mock no exact username match
       (firestore as any).mockGet.mockResolvedValueOnce({
         forEach: () => {} // Empty result
       });
 
-      // Mock display name search
       (firestore as any).mockGet.mockResolvedValueOnce({
         forEach: (cb: any) => mockUsers.forEach(cb)
       });
@@ -199,7 +192,6 @@ describe('Firestore Service', () => {
       const mockUser = {
         username: 'alice',
         displayName: 'Alice Smith'
-        // Missing billIds, totalSpent, totalPaid
       };
 
       (firestore as any).mockGet.mockResolvedValueOnce({

@@ -10,7 +10,7 @@ jest.mock('@react-native-firebase/auth', () => ({
   signOut: jest.fn(() => Promise.resolve()),
   onAuthStateChanged: jest.fn((auth, cb) => {
     cb({ uid: '123' });
-    return () => {}; // mock unsubscribe
+    return () => {};
   })
 }));
 
@@ -27,7 +27,6 @@ jest.mock('@react-native-firebase/firestore', () => {
     collection: mockCollection
   });
   
-  // Store references for test access
   mockFirestore.mockCollection = mockCollection;
   mockFirestore.mockDoc = mockDoc;
   mockFirestore.mockGet = mockGet;
@@ -50,7 +49,6 @@ describe('Auth Service', () => {
     jest.clearAllMocks();
   });
 
-  // Existing tests
   it('signInUser returns user object', async () => {
     const user = await signInUser('test@example.com', 'password');
     expect(user.uid).toBe('123');
@@ -67,7 +65,6 @@ describe('Auth Service', () => {
     expect(cb).toHaveBeenCalledWith({ uid: '123' });
   });
 
-  // New tests for refactored functionality
   describe('getCurrentUserData', () => {
     it('returns null if no current user', async () => {
       (getAuth as jest.Mock).mockReturnValue({ currentUser: null });
@@ -118,7 +115,6 @@ describe('Auth Service', () => {
       const mockUserData = {
         username: 'testuser',
         displayName: 'Test User'
-        // Missing billIds, totalSpent, totalPaid
       };
 
       (getAuth as jest.Mock).mockReturnValue({ 
@@ -145,8 +141,8 @@ describe('Auth Service', () => {
   describe('listenToCurrentUser', () => {
     it('calls callback with null if no user signed in', () => {
       (onAuthStateChanged as jest.Mock).mockImplementation((auth, cb) => {
-        cb(null); // No user
-        return jest.fn(); // Mock unsubscribe
+        cb(null);
+        return jest.fn();
       });
 
       const callback = jest.fn();
@@ -175,8 +171,8 @@ describe('Auth Service', () => {
       });
 
       (onAuthStateChanged as jest.Mock).mockImplementation(async (auth, cb) => {
-        await cb({ uid: 'uid123' }); // User signed in
-        return jest.fn(); // Mock unsubscribe
+        await cb({ uid: 'uid123' });
+        return jest.fn();
       });
 
       const callback = jest.fn();
