@@ -41,7 +41,7 @@ interface Trip {
   tripDescription: string;
   isConcluded: boolean;
   eventIds: string[];
-  budgets?: Budget; // Include budgets field from Firestore
+  budgets?: Budget;
 }
 
 interface MonthOption {
@@ -63,8 +63,6 @@ export default function TripInfoScreen() {
   const [isManageTripModalVisible, setIsManageTripModalVisible] = useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
   const [isFromConcludeFlow, setIsFromConcludeFlow] = useState(false);
-
-  // New states for Edit Budget Modal
   const [isEditBudgetModalVisible, setIsEditBudgetModalVisible] = useState(false);
   const [editGroupBudget, setEditGroupBudget] = useState('');
   const [editIndividualBudget, setEditIndividualBudget] = useState('');
@@ -581,7 +579,6 @@ export default function TripInfoScreen() {
 
                 <View style={styles.ledgerSeparator} />
 
-                {/* New: Edit Budget Button */}
                 <TouchableOpacity
                   style={styles.settlementButtonCompact}
                   onPress={() => setIsEditBudgetModalVisible(true)}
@@ -650,7 +647,6 @@ export default function TripInfoScreen() {
           </View>
         </Modal>
 
-        {/* NEW: Edit Budget Modal */}
         <Modal
           visible={isEditBudgetModalVisible}
           animationType="slide"
@@ -697,8 +693,6 @@ export default function TripInfoScreen() {
             </ScrollView>
           </SafeAreaView>
         </Modal>
-        {/* END NEW: Edit Budget Modal */}
-
 
         <Modal
           visible={showStartDatePicker}
