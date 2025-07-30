@@ -30,7 +30,7 @@ Make sure you have the following installed on your machine:
 
 2.  **Install project dependencies**:
     ```bash
-    npm install
+    npm install --force
     ```
 
 2.  **Install XCode and the iOS Component**:
