@@ -1,4 +1,4 @@
-import { Link, useRouter } from 'expo-router'; // IMPORTANT: Import Link AND useRouter
+import { Link, useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { useState } from "react";
 import {

@@ -45,3 +45,5 @@ Once you have installed all the dependencies and the XCode iOS component, you ca
     npx expo run:ios
     ```
     This will run the app in the iOS Simulator.
+
+    If you see a fatal error on the simulator upon building the app, press the ESC Key or the "Dismiss" button and the app should run normally.
